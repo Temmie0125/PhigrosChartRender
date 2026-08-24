@@ -35,7 +35,7 @@ from .hold_renderer import (
     render_hold_trajectory,
 )
 from .info_bar import compute_duration_seconds, compute_note_stats, render_info_bar
-from .marker_renderer import render_markers
+from .marker_renderer import render_markers, render_overlap_markers
 from .models import ColumnInfo, NoteRenderInfo
 from .note_renderer import NoteImageLoader, detect_multitap_groups, place_notes_on_axes
 from .timeline import (
@@ -203,6 +203,9 @@ def render(config: RenderConfig) -> None:
 
     # 右侧标记（时值间隔 + 累计计数），在 Note 之上
     render_markers(ax, columns, notes_info)
+
+    # 位置重合的 Note 组标注 "×n"（写在 Note 旁边）
+    render_overlap_markers(ax, notes_info)
 
     # Note 贴图（按 startTime 从早到晚分配递增 zorder）
     place_notes_on_axes(ax, notes_info, image_loader)

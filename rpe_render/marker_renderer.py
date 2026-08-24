@@ -1,7 +1,7 @@
-"""时值标记与计数标记：绘制 Note 时值间隔与累计计数。
+"""时值标记、计数标记与位置重合标注。
 
-时值间隔标记绘制在栏内侧右缘，累计计数标记绘制在栏外侧，
-二者互不重叠。
+时值间隔标记绘制在栏内侧右缘，累计计数标记绘制在栏外侧，二者互不重叠；
+位置重合的 Note 组在其旁边标注 "×n"（栏内）。
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ from .constants import (
     MARKER_MARGIN_PX,
     MARKER_TEXT_COLOR,
     MAX_INTERVAL_MARK_BEAT,
+    NOTE_OVERLAP_LABEL_OFFSET_PX,
+    NOTE_OVERLAP_THRESHOLD_X,
 )
 from .models import ColumnInfo, NoteRenderInfo
 
@@ -89,6 +91,48 @@ def compute_count_markers(
     return markers
 
 
+def compute_overlap_groups(
+    notes: list[NoteRenderInfo],
+    threshold_x: float = NOTE_OVERLAP_THRESHOLD_X,
+) -> list[list[NoteRenderInfo]]:
+    """按开始时间（startTime）聚类重合的 Note 组。
+
+    规则（仅考虑开始时间处的重叠）：
+    - 同一开始时间（beat 相同）的 Note 才可能重合；不同开始时间的
+      Note 即使渲染位置接近也不成组
+    - Hold 仅以头部（startTime）参与判定，持续期间覆盖的其他 Note 不计入
+    - 组内进一步按谱面原始 X 距离聚类：与组内任一成员的 |true_x| 距离
+      <= 阈值即视为重合
+
+    Args:
+        notes: 全部 Note 的渲染信息（需含 beat 与 true_x）
+        threshold_x: 重合判定阈值（谱面原始 X 距离，游戏坐标单位，默认 75.0）
+
+    Returns:
+        重合组列表，每组 >= 2 个 Note；无重合时返回空列表
+    """
+    by_start: dict[float, list[NoteRenderInfo]] = {}
+    for n in notes:
+        by_start.setdefault(n.beat, []).append(n)
+
+    groups: list[list[NoteRenderInfo]] = []
+    for members in by_start.values():
+        if len(members) < 2:
+            continue
+        # 同刻成员按原始 X 排序后贪心聚类（与组内任一成员距离 <= 阈值即入组）
+        subs: list[list[NoteRenderInfo]] = []
+        for member in sorted(members, key=lambda n: n.true_x):
+            for sub in subs:
+                if any(abs(member.true_x - m.true_x) <= threshold_x for m in sub):
+                    sub.append(member)
+                    break
+            else:
+                subs.append([member])
+        groups.extend(sub for sub in subs if len(sub) >= 2)
+
+    return groups
+
+
 def _beat_to_y(beat: float, col_index: int) -> float:
     """栏内 Y 像素（下落式，从底部向上递增）。"""
     return (beat - col_index * COLUMN_BEATS) * BEAT_HEIGHT_PX
@@ -148,5 +192,30 @@ def render_markers(
             va=_edge_va(y, col),
             fontsize=7,
             color=COUNT_TEXT_COLOR,
+            zorder=MARKER_ZORDER,
+        )
+
+
+def render_overlap_markers(
+    ax: Axes,
+    notes: list[NoteRenderInfo],
+    threshold_x: float = NOTE_OVERLAP_THRESHOLD_X,
+) -> None:
+    """在开始时间重合的 Note 组旁边标注 "×n"。
+
+    标注写在组最右 Note 的右侧（栏内，紧挨 Note 图标），
+    垂直位置为组内 Note 的开始时间（组内同刻，y 相同）。
+    """
+    for group in compute_overlap_groups(notes, threshold_x):
+        x = max(n.x_pixel for n in group) + NOTE_OVERLAP_LABEL_OFFSET_PX
+        y = group[0].y_pixel
+        ax.text(
+            x,
+            y,
+            f"×{len(group)}",
+            ha="left",
+            va="center",
+            fontsize=8,
+            color=MARKER_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )

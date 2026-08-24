@@ -14,6 +14,7 @@ from .constants import (
     BEAT_LINE_COLOR,
     BEAT_LINE_WIDTH,
     BEAT_MARK_INTERVAL,
+    BPM_MARK_INSET_PX,
     BPM_TEXT_COLOR,
     MARKER_MARGIN_PX,
     MARKER_TEXT_COLOR,
@@ -104,7 +105,7 @@ def render_single_column_grid(
             zorder=MARKER_ZORDER,
         )
 
-    # ---- BPM 标记 ----
+    # ---- BPM 标记（栏内最左侧，避免与栏外左缘的拍号标记重合）----
     for bpm_event in bpm_list:
         bpm_beat = timet_to_beats(tuple(bpm_event.start_time))
         if col.beat_start <= bpm_beat < col.beat_end:
@@ -112,10 +113,10 @@ def render_single_column_grid(
             # 默认显示在拍线上方 14px；底部边缘放不下时折到拍线下方
             y_anchor = y + 18.0 if y - 14.0 < 0.0 else y - 14.0
             ax.text(
-                col.pixel_left - MARKER_MARGIN_PX,
+                col.pixel_left + BPM_MARK_INSET_PX,
                 y_anchor,
                 f"BPM:{bpm_event.bpm:g}",
-                ha="right",
+                ha="left",
                 va="top",
                 fontsize=7,
                 color=BPM_TEXT_COLOR,

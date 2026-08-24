@@ -63,6 +63,10 @@ PREVIEW_BG_ALPHA: float = 0.55
 # 栏外侧文字边距（px）
 MARKER_MARGIN_PX: float = 20.0
 
+# BPM 标记在栏内左侧的内缩距离（px）
+# 写在栏内最左侧，避免与栏外左缘的拍号标记重合
+BPM_MARK_INSET_PX: float = 8.0
+
 # ==================== 贴图路径 ====================
 
 # Note 贴图文件名映射: type -> (normal, highlight)
@@ -107,6 +111,15 @@ MAX_INTERVAL_MARK_BEAT: float = 0.25
 
 # 累计计数标记间隔（拍）
 COUNT_MARK_INTERVAL: int = 4
+
+# ==================== Note 开始时间重合标注 ====================
+
+# 重合判定阈值（谱面原始 X 距离，游戏坐标单位）：同一开始时间的 Note 中，
+# 原始 X 距离 <= 阈值视为视觉重合；Hold 仅以头部参与判定
+NOTE_OVERLAP_THRESHOLD_X: float = 75.0
+
+# "×n" 标注相对组最右 Note 的横向偏移（px），写在 Note 旁边（栏内）
+NOTE_OVERLAP_LABEL_OFFSET_PX: float = 14.0
 
 # ==================== 背景处理 ====================
 

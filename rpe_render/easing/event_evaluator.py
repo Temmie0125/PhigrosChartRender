@@ -122,17 +122,33 @@ def find_enclosing_event(
 def judge_line_x_at(line: JudgeLineData, t_beat: float) -> float:
     """计算判定线在时刻 t_beat 的 X 坐标。
 
-    ★ 关键设计: 遍历全部 4 个 eventLayers，对每个层级独立查找该时刻的
-    moveXEvents，将找到的 X 值直接叠加（求和）。
+    ★ 关键设计: 遍历全部 4 个 eventLayers，对每个层级独立查找该时刻
+    生效的 moveXEvents，将找到的 X 值直接叠加（求和）。
+
+    事件持续语义（与 Phigros 一致）：
+    - t 处于事件区间 [start, end) 内 → 按缓动插值
+    - t >= 事件 endTime 且无更晚事件 → 保持该事件的结束值（event.end），
+      不会回落到 0（若无此保持，事件间隙中的 Note 会被误判为 X=0）
+    - 谱面开始到第一个事件之前 → 0.0（默认位置）
 
     Returns:
-        所有层级叠加后的判定线 X 坐标；无任何事件覆盖时返回 0.0。
+        所有层级叠加后的判定线 X 坐标。
     """
     x_total = 0.0
     for layer in line.event_layers:
-        event = find_enclosing_event(layer.move_x_events, t_beat)
-        if event is not None:
-            x_total += evaluate_event_value(event, t_beat)
+        # 取最后一个 startTime <= t_beat 的事件（覆盖中或已结束保持）。
+        # 事件列表在 chart_parser 解析时已按 startTime 排序；
+        # 此处覆盖式选取对乱序输入同样稳健。
+        active: Optional[EventData] = None
+        for event in layer.move_x_events:
+            if timet_to_beats(event.start_time) <= t_beat:
+                active = event
+        if active is None:
+            continue
+        if t_beat >= timet_to_beats(active.end_time):
+            x_total += active.end  # 事件结束后的保持值
+        else:
+            x_total += evaluate_event_value(active, t_beat)
     return x_total
 
 
