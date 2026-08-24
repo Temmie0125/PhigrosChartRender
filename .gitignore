@@ -1,0 +1,6 @@
+docs/
+.pytest_cache/
+tests/
+
+# 渲染输出产物
+/output*.png
