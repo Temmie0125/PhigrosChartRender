@@ -10,6 +10,7 @@ from math import ceil
 
 from .constants import (
     AFFECTED_AREA_EXTRA_GAP_PX,
+    AFFECTED_AREA_MARGIN_LEFT_PX,
     BEAT_HEIGHT_PX,
     COLUMN_BEATS,
     COLUMN_GAP,
@@ -28,6 +29,7 @@ logger = logging.getLogger("rpe_render")
 def compute_columns(
     max_beat: float,
     affected_columns: set[int] | None = None,
+    column_area_widths: dict[int, float] | None = None,
 ) -> list[ColumnInfo]:
     """根据谱面总拍数计算所有分栏信息。
 
@@ -40,8 +42,11 @@ def compute_columns(
     Args:
         max_beat: 谱面最大拍数
         affected_columns: 受影响栏（近竖直判定线段所在栏）索引集合；
-            这些栏右侧额外增加 AFFECTED_AREA_EXTRA_GAP_PX 间距，
-            为水平分布小区域预留空间。None 时行为与旧版完全一致。
+            这些栏右侧额外增加间距，为水平分布小区域预留空间。
+        column_area_widths: 受影响栏的小区域实际宽度（px）映射；提供时
+            该栏的额外间距取 max(AFFECTED_AREA_EXTRA_GAP_PX,
+            AFFECTED_AREA_MARGIN_LEFT_PX + 宽度)，保证小区域不被右侧栏
+            或画布右缘遮挡。None 时行为与旧版完全一致。
 
     Returns:
         分栏信息列表（至少 1 栏）
@@ -56,16 +61,24 @@ def compute_columns(
 
     affected = affected_columns or set()
 
+    # 每栏右侧额外间距：受影响栏至少 AFFECTED_AREA_EXTRA_GAP_PX，
+    # 提供了区域宽度时按需放大到 MARGIN_LEFT + 宽度
+    gaps = [0.0] * num_columns
+    for index in affected:
+        gaps[index] = AFFECTED_AREA_EXTRA_GAP_PX
+        if column_area_widths and index in column_area_widths:
+            gaps[index] = max(
+                gaps[index],
+                AFFECTED_AREA_MARGIN_LEFT_PX + column_area_widths[index],
+            )
+
     columns: list[ColumnInfo] = []
     for index in range(num_columns):
         beat_start = index * COLUMN_BEATS
         beat_end = beat_start + COLUMN_BEATS
         # 累积式左边界：受影响的中间栏在右侧额外占位，后续栏整体右移
         pixel_left = float(
-            sum(
-                COLUMN_WIDTH + COLUMN_GAP + (AFFECTED_AREA_EXTRA_GAP_PX if i in affected else 0)
-                for i in range(index)
-            )
+            sum(COLUMN_WIDTH + COLUMN_GAP + gaps[i] for i in range(index))
         )
         pixel_right = pixel_left + COLUMN_WIDTH
         columns.append(
@@ -77,9 +90,7 @@ def compute_columns(
                 pixel_right=pixel_right,
                 pixel_bottom=0.0,
                 pixel_top=COLUMN_BEATS * BEAT_HEIGHT_PX,
-                pixel_gap_right=float(AFFECTED_AREA_EXTRA_GAP_PX)
-                if index in affected
-                else 0.0,
+                pixel_gap_right=gaps[index],
             )
         )
     return columns

@@ -24,7 +24,6 @@ from .constants import (
     AFFECTED_ANGLE_MIN_DEG,
     AFFECTED_AREA_BORDER_COLOR,
     AFFECTED_AREA_MARGIN_LEFT_PX,
-    AFFECTED_AREA_WIDTH_PX,
     AFFECTED_BOX_CLUSTER_GAP_BEATS,
     AFFECTED_BOX_EDGE_COLOR,
     AFFECTED_BOX_PAD_X_PX,
@@ -32,6 +31,7 @@ from .constants import (
     AFFECTED_BOX_ROUNDING_PX,
     BEAT_HEIGHT_PX,
     COLUMN_BEATS,
+    COLUMN_WIDTH,
     GAME_X_MAX,
     GAME_X_MIN,
     HOLD_BODY_OVERLAP_PX,
@@ -303,10 +303,48 @@ def render_affected_boxes(
         )
 
 
-def _area_x(area_left: float, position_x: float) -> float:
-    """区域内水平坐标：positionX ±675 全宽映射到区域内容宽度（图标中心）。"""
-    ratio = (position_x - GAME_X_MIN) / (GAME_X_MAX - GAME_X_MIN)
-    return area_left + ratio * AFFECTED_AREA_WIDTH_PX
+def compute_affected_area_widths(
+    segments: list[AffectedSegment],
+) -> dict[int, float]:
+    """每个受影响栏的小区域宽度：栏内受影响 note 的真实横向占用宽度。
+
+    宽度 = 最左 note 左端到最右 note 右端 = positionX 跨度按主栏同比例
+    （GAME_X 全宽 1350 单位 → COLUMN_WIDTH px）换算 + 单个图标宽度。
+    跨栏 Hold 按其覆盖的每栏计入（各段 X 均由 positionX 决定）。
+
+    Returns:
+        {栏索引: 区域宽度(px)}，仅含有关注 note 的受影响栏。
+    """
+    scale = COLUMN_WIDTH / (GAME_X_MAX - GAME_X_MIN)
+    widths: dict[int, float] = {}
+    for col_index in sorted(affected_column_indices(segments)):
+        px = [
+            n.note.position_x
+            for seg in segments
+            for n in seg.notes
+            if _note_covers_column(n, col_index)
+        ]
+        if not px:
+            continue
+        widths[col_index] = (max(px) - min(px)) * scale + NOTE_ICON_WIDTH
+    return widths
+
+
+def _make_area_x(
+    area_left: float,
+    p_min: float,
+    scale: float,
+) -> Callable[[float], float]:
+    """区域内水平坐标映射：按真实间距（与主栏同比例）放置图标中心。
+
+    最左 note 的左端对齐区域左缘；note 之间的像素距离 = positionX 差 × scale，
+    与主栏中相同 note 的横向距离完全一致（不再固定宽度压缩）。
+    """
+
+    def area_x(position_x: float) -> float:
+        return area_left + (position_x - p_min) * scale + NOTE_ICON_WIDTH / 2.0
+
+    return area_x
 
 
 def _hold_segment_geometry(
@@ -333,13 +371,13 @@ def _draw_icon(
     image_loader: Any,
     note_info: NoteRenderInfo,
     col_index: int,
-    area_left: float,
+    area_x: Callable[[float], float],
     zorder: float,
 ) -> None:
-    """区域内绘制一个普通 Note 图标。"""
+    """区域内绘制一个普通 Note 图标（X 由真实间距映射）。"""
     img = image_loader.get_note_image(note_info.note.type, note_info.is_multitap)
     h, w = img.shape[0], img.shape[1]
-    cx = _area_x(area_left, note_info.note.position_x)
+    cx = area_x(note_info.note.position_x)
     cy = (note_info.beat - col_index * COLUMN_BEATS) * BEAT_HEIGHT_PX
     ax.imshow(
         img,
@@ -354,7 +392,7 @@ def _draw_hold_piece(
     image_loader: Any,
     note_info: NoteRenderInfo,
     col_index: int,
-    area_left: float,
+    area_x: Callable[[float], float],
     zorder: float,
 ) -> None:
     """区域内绘制 Hold 在该栏的一段（Head/End/Body，X 全部由 positionX 映射）。"""
@@ -362,7 +400,7 @@ def _draw_hold_piece(
         note_info, col_index
     )
     hl = note_info.is_multitap
-    cx = _area_x(area_left, note_info.note.position_x)
+    cx = area_x(note_info.note.position_x)
     half_w = NOTE_ICON_WIDTH / 2.0
 
     if has_head:
@@ -438,19 +476,36 @@ def render_affected_areas(
 ) -> None:
     """为每个受影响栏绘制水平分布小区域（背景 + 区域内 Note 内容）。
 
-    区域位于栏右缘外侧（pixel_right + AFFECTED_AREA_MARGIN_LEFT_PX 起，
-    宽度 AFFECTED_AREA_WIDTH_PX），纵向仅覆盖该栏受影响段的范围（与受影响
-    区域等高），不再填满整栏；背景与主栏轨道一致（半透明黑覆盖层，无白色
-    填充）。note 按原始 positionX ±675 全宽映射到区域宽度，内容 zorder 按
-    beat 排序 10+ 递增，与主栏 Note 同级。
+    区域位于栏右缘外侧（pixel_right + AFFECTED_AREA_MARGIN_LEFT_PX 起），
+    宽度 = 栏内受影响 note 的真实横向占用宽度（最左 note 左端到最右 note
+    右端，见 compute_affected_area_widths）；纵向仅覆盖该栏受影响段的范围
+    （与受影响区域等高），不再填满整栏；背景与主栏轨道一致（半透明黑覆盖
+    层，无白色填充）。note 按真实间距放置（与主栏同比例，不压缩），内容
+    zorder 按 beat 排序 10+ 递增；同刻时 Hold 排前（zorder 更低），
+    非 Hold Note 绘制在上层，避免 Hold 头遮挡与之重合的音符。
     """
     affected_cols = sorted(
         c for c in affected_column_indices(segments) if c < len(columns)
     )
+    area_widths = compute_affected_area_widths(segments)
+    scale = COLUMN_WIDTH / (GAME_X_MAX - GAME_X_MIN)
 
     for col_index in affected_cols:
         col = columns[col_index]
         area_left = col.pixel_right + AFFECTED_AREA_MARGIN_LEFT_PX
+        width = area_widths.get(col_index, 0.0)
+        if width <= 0.0:
+            continue
+
+        # 区域内真实间距映射：锚点为栏内受影响 note 的最小 positionX
+        col_notes = [
+            n
+            for seg in segments
+            for n in seg.notes
+            if _note_covers_column(n, col_index)
+        ]
+        p_min = min(n.note.position_x for n in col_notes)
+        area_x = _make_area_x(area_left, p_min, scale)
 
         # 背景与主栏轨道同款：半透明黑覆盖在预览区底色之上，仅描边区分区域；
         # 纵向仅覆盖该栏受影响段的范围（与受影响区域等高），高度为 0 时跳过
@@ -463,7 +518,7 @@ def render_affected_areas(
                 ax.add_patch(
                     Rectangle(
                         (area_left, y0),
-                        AFFECTED_AREA_WIDTH_PX,
+                        width,
                         y1 - y0,
                         facecolor="black",
                         alpha=min(track_bg_alpha, 1.0),
@@ -473,7 +528,9 @@ def render_affected_areas(
                     )
                 )
 
-        jobs: list[tuple[float, Callable[[float], None]]] = []
+        # jobs: (beat, 0=Hold 排前 / 1=普通 Note 排后, draw)；同刻普通 Note
+        # 分配更高 zorder 绘制在上层，不被 Hold 头遮挡
+        jobs: list[tuple[float, int, Callable[[float], None]]] = []
         for seg in segments:
             for n in seg.notes:
                 if not _note_covers_column(n, col_index):
@@ -482,8 +539,9 @@ def render_affected_areas(
                     jobs.append(
                         (
                             n.beat,
+                            0,
                             lambda z, n=n: _draw_hold_piece(
-                                ax, image_loader, n, col_index, area_left, z
+                                ax, image_loader, n, col_index, area_x, z
                             ),
                         )
                     )
@@ -491,13 +549,16 @@ def render_affected_areas(
                     jobs.append(
                         (
                             n.beat,
+                            1,
                             lambda z, n=n: _draw_icon(
-                                ax, image_loader, n, col_index, area_left, z
+                                ax, image_loader, n, col_index, area_x, z
                             ),
                         )
                     )
 
-        for z, (_, draw) in enumerate(sorted(jobs, key=lambda t: t[0])):
+        for z, (_, _, draw) in enumerate(
+            sorted(jobs, key=lambda t: (t[0], t[1]))
+        ):
             draw(NOTE_BASE_ZORDER + z)
 
 

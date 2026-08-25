@@ -13,6 +13,7 @@ from matplotlib.axes import Axes
 from .constants import (
     BEAT_HEIGHT_PX,
     COLUMN_BEATS,
+    COUNT_MARK_FONT_SIZE,
     COUNT_MARK_INTERVAL,
     MARKER_MARGIN_PX,
     MARKER_TEXT_COLOR,
@@ -178,7 +179,7 @@ def render_markers(
             label,
             ha="right",
             va=_edge_va(y, col),
-            fontproperties=get_font(7.0),
+            fontproperties=get_font(COUNT_MARK_FONT_SIZE),
             color=INTERVAL_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )
@@ -196,7 +197,7 @@ def render_markers(
             str(count),
             ha="left",
             va=_edge_va(y, col),
-            fontproperties=get_font(7.0),
+            fontproperties=get_font(COUNT_MARK_FONT_SIZE),
             color=COUNT_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )

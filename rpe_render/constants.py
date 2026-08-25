@@ -151,6 +151,15 @@ MAX_INTERVAL_MARK_BEAT: float = 0.25
 # 累计计数标记间隔（拍）
 COUNT_MARK_INTERVAL: int = 4
 
+# 拍号标记字号（pt）—— 栏左侧
+BEAT_MARK_FONT_SIZE: float = 8.0
+
+# BPM 变化标记字号（pt）—— 栏内最左侧
+BPM_MARK_FONT_SIZE: float = 7.0
+
+# 时值间隔 / 累计计数标记字号（pt）—— 栏内右缘 / 栏外右侧
+COUNT_MARK_FONT_SIZE: float = 7.0
+
 # ==================== Note 开始时间重合标注 ====================
 
 # 重合判定阈值（谱面原始 X 距离，游戏坐标单位）：同一开始时间的 Note 中，
@@ -176,16 +185,15 @@ BACKGROUND_BRIGHTNESS: float = 0.75
 AFFECTED_ANGLE_MIN_DEG: float = 75.0  # |角度| 下限（含）
 AFFECTED_ANGLE_MAX_DEG: float = 90.0  # |角度| 上限（含）
 
-# 受影响栏右侧额外间距（为小区域预留画布空间）（px）
-# 需满足 EXTRA_GAP + SIDE_MARKER_PADDING >= MARGIN_LEFT + WIDTH（=214），
-# 否则末栏的小区域会被画布右缘裁掉。
+# 受影响栏右侧额外间距（为小区域预留画布空间的最小值）（px）
+# 小区域宽度随谱面动态变化（受影响 note 的真实横向占用宽度，
+# 见 affected_area_renderer.compute_affected_area_widths），实际间距取
+# max(本值, MARGIN_LEFT + 区域宽度)，保证小区域不被右侧栏或画布右缘遮挡。
 AFFECTED_AREA_EXTRA_GAP_PX: float = 150.0
 
-# 小区域左缘相对栏右缘的偏移（避开计数标记 20px + 文字）（px）
-AFFECTED_AREA_MARGIN_LEFT_PX: float = 44.0
-
-# 小区域内容宽度（positionX ±675 全宽映射）（px）
-AFFECTED_AREA_WIDTH_PX: float = 170.0
+# 小区域左缘相对栏右缘的偏移（避开计数标记 20px + 7pt 文字，
+# 并预留约 20px 余量，避免多位数计数文字进入小区域）（px）
+AFFECTED_AREA_MARGIN_LEFT_PX: float = 64.0
 
 # 小区域边框（底色与主栏轨道一致，不单独填充）
 AFFECTED_AREA_BORDER_COLOR: str = "#CCCCCC"

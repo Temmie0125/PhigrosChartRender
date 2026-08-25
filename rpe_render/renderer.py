@@ -15,6 +15,7 @@ from matplotlib.figure import Figure
 from .affected_area_renderer import (
     affected_column_indices,
     build_affected_segments,
+    compute_affected_area_widths,
     render_affected_areas,
     render_affected_boxes,
 )
@@ -193,10 +194,12 @@ def render(config: RenderConfig) -> None:
             )
             flat_index += 1
 
-    # 受影响段检测 → 受影响栏集合 → 分栏（受影响栏右侧额外间距）
+    # 受影响段检测 → 受影响栏集合 → 各栏小区域宽度（真实间距占用）→ 分栏
+    # （受影响栏右侧额外间距按区域宽度动态放大）
     segments = build_affected_segments(notes_info)
     affected_columns = affected_column_indices(segments)
-    columns = compute_columns(max_beat, affected_columns)
+    column_area_widths = compute_affected_area_widths(segments)
+    columns = compute_columns(max_beat, affected_columns, column_area_widths)
 
     # ===== Phase 3b: 回填像素坐标（依赖分栏几何）=====
     for info in notes_info:

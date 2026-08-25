@@ -13,7 +13,9 @@ from .constants import (
     BEAT_LINE_ALPHA,
     BEAT_LINE_COLOR,
     BEAT_LINE_WIDTH,
+    BEAT_MARK_FONT_SIZE,
     BEAT_MARK_INTERVAL,
+    BPM_MARK_FONT_SIZE,
     BPM_MARK_INSET_PX,
     BPM_TEXT_COLOR,
     MARKER_MARGIN_PX,
@@ -101,7 +103,7 @@ def render_single_column_grid(
             str(beat),
             ha="right",
             va=_edge_va(y, col),
-            fontproperties=get_font(8.0),
+            fontproperties=get_font(BEAT_MARK_FONT_SIZE),
             color=MARKER_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )
@@ -119,7 +121,7 @@ def render_single_column_grid(
                 f"BPM:{bpm_event.bpm:g}",
                 ha="left",
                 va="top",
-                fontproperties=get_font(7.0),
+                fontproperties=get_font(BPM_MARK_FONT_SIZE),
                 color=BPM_TEXT_COLOR,
                 zorder=MARKER_ZORDER,
             )
