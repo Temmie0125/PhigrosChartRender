@@ -20,7 +20,9 @@ from .constants import (
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
     PREVIEW_BG_ALPHA,
+    TRACK_BG_ALPHA,
 )
+from .models import ColumnInfo
 
 logger = logging.getLogger("rpe_render")
 
@@ -28,6 +30,9 @@ BACKGROUND_ZORDER = -1
 
 # 覆盖层 zorder：位于曲绘背景（-1）之上、网格线（0）之下
 PREVIEW_BG_ZORDER = -0.5
+
+# 轨道加深层 zorder：位于预览区覆盖层（-0.5）之上、网格线（0）之下
+TRACK_BG_ZORDER = -0.25
 
 
 def load_and_blur_background(
@@ -152,3 +157,38 @@ def apply_preview_overlay(
             zorder=PREVIEW_BG_ZORDER,
         )
     )
+
+
+def apply_track_overlays(
+    ax: Axes,
+    columns: list[ColumnInfo],
+    canvas_height_px: float,
+    alpha: float = TRACK_BG_ALPHA,
+) -> None:
+    """为每条 Note 轨道（分栏竖直区域，不含轨道间隔栏）叠加加深底色。
+
+    每栏一个黑色 Rectangle，只覆盖该栏的 Note 展示区域（pixel_left 到
+    pixel_right），位于预览区覆盖层之上、网格线之下，使相邻轨道在视觉上
+    更容易区分。透明度 0.0 时不绘制任何内容。
+
+    Args:
+        ax: 目标 Axes
+        columns: 分栏信息列表
+        canvas_height_px: 画布高度（px）
+        alpha: 黑色透明度（0.0 ~ 1.0）
+    """
+    if alpha <= 0.0:
+        return
+    for col in columns:
+        ax.add_patch(
+            Rectangle(
+                (col.pixel_left, 0.0),
+                col.pixel_right - col.pixel_left,
+                canvas_height_px,
+                facecolor="black",
+                alpha=min(alpha, 1.0),
+                linewidth=0,
+                edgecolor="none",
+                zorder=TRACK_BG_ZORDER,
+            )
+        )

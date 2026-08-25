@@ -8,19 +8,46 @@ import os
 import sys
 from pathlib import Path
 
-from .constants import NOTES_DIR, OUTPUT_DPI, PREVIEW_BG_ALPHA
-from .renderer import RenderConfig, render
+logger = logging.getLogger("rpe_render")
 
 
-def parse_args(argv: list[str] | None = None) -> RenderConfig:
+def _extract_config_path(argv: list[str]) -> str | None:
+    """从原始参数中提取 --config 路径。
+
+    必须在导入任何 rpe_render 模块之前调用：配置需先于其他模块生效，
+    这样各模块 import 到的常量默认值才能反映配置文件覆盖。
+    """
+    it = iter(argv)
+    for token in it:
+        if token == "--config":
+            try:
+                return next(it)
+            except StopIteration:
+                return None
+        if token.startswith("--config="):
+            return token.split("=", 1)[1]
+    return None
+
+
+def parse_args(argv: list[str] | None = None):
     """解析命令行参数并构建 RenderConfig。
 
     Usage:
         python -m rpe_render chart.json
         python -m rpe_render chart.json --background art.png
-        python -m rpe_render chart.json -o output.png
-        python -m rpe_render chart.json --bg art.png -o out.png --dpi 300
+        python -m rpe_render chart.json -o output.png --config render_config.json
     """
+    # 延迟导入：确保 parse_args 在 main() 应用配置文件之后才被调用，
+    # argparse 默认值取自应用过覆盖的常量。
+    from .constants import (
+        CONFIG_FILE_NAME,
+        NOTES_DIR,
+        OUTPUT_DPI,
+        PREVIEW_BG_ALPHA,
+        TRACK_BG_ALPHA,
+    )
+    from .renderer import RenderConfig
+
     parser = argparse.ArgumentParser(
         prog="rpe-render",
         description="RPE 谱面配置预览图生成器",
@@ -29,6 +56,12 @@ def parse_args(argv: list[str] | None = None) -> RenderConfig:
         "chart",
         type=Path,
         help="RPE JSON 谱面文件路径",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help=f"配置文件路径（默认: 当前目录下的 {CONFIG_FILE_NAME}）",
     )
     parser.add_argument(
         "--background",
@@ -42,7 +75,7 @@ def parse_args(argv: list[str] | None = None) -> RenderConfig:
         "--output",
         type=Path,
         default=Path("output.png"),
-        help=f"输出 PNG 文件路径（默认: output.png）",
+        help="输出 PNG 文件路径（默认: output.png）",
     )
     parser.add_argument(
         "--dpi",
@@ -65,6 +98,15 @@ def parse_args(argv: list[str] | None = None) -> RenderConfig:
             f"（默认: {PREVIEW_BG_ALPHA}，0.0 关闭）"
         ),
     )
+    parser.add_argument(
+        "--track-bg-alpha",
+        type=float,
+        default=TRACK_BG_ALPHA,
+        help=(
+            "每条 Note 轨道区域额外加深透明度 0.0~1.0"
+            f"（默认: {TRACK_BG_ALPHA}，0.0 关闭）"
+        ),
+    )
     args = parser.parse_args(argv)
 
     return RenderConfig(
@@ -74,6 +116,7 @@ def parse_args(argv: list[str] | None = None) -> RenderConfig:
         notes_dir=args.notes_dir,
         dpi=args.dpi,
         preview_bg_alpha=args.preview_bg_alpha,
+        track_bg_alpha=args.track_bg_alpha,
     )
 
 
@@ -87,7 +130,21 @@ def _configure_logging() -> None:
 def main(argv: list[str] | None = None) -> int:
     """CLI 入口函数。"""
     _configure_logging()
-    config = parse_args(argv)
+    argv_list = list(argv) if argv is not None else sys.argv[1:]
+
+    # 先应用配置文件（优先级: --config > 环境变量 > 默认 render_config.json），
+    # 再导入渲染模块，保证所有默认值都反映配置覆盖。
+    from .constants import CONFIG_ENV_VAR, load_config
+
+    config_path = _extract_config_path(argv_list)
+    if config_path:
+        os.environ[CONFIG_ENV_VAR] = config_path
+        logger.info("Using config file: %s", config_path)
+    load_config()
+
+    config = parse_args(argv_list)
+    from .renderer import render
+
     try:
         render(config)
     except (FileNotFoundError, ValueError) as exc:

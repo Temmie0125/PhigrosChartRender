@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from .background import (
     apply_background_to_axes,
     apply_preview_overlay,
+    apply_track_overlays,
     load_and_blur_background,
 )
 from .chart_parser import parse_chart, validate_chart
@@ -25,6 +26,7 @@ from .constants import (
     OUTPUT_DPI,
     PREVIEW_BG_ALPHA,
     SIDE_MARKER_PADDING_PX,
+    TRACK_BG_ALPHA,
 )
 from .easing.event_evaluator import judge_line_x_at
 from .grid_renderer import render_grid
@@ -61,6 +63,7 @@ class RenderConfig:
         notes_dir: str | object = "resources/notes",
         dpi: int = OUTPUT_DPI,
         preview_bg_alpha: float = PREVIEW_BG_ALPHA,
+        track_bg_alpha: float = TRACK_BG_ALPHA,
     ):
         self.chart_path = chart_path
         self.background_path = background_path
@@ -69,6 +72,8 @@ class RenderConfig:
         self.dpi = dpi
         # 谱面预览区半透明黑色底色透明度（0.0 ~ 1.0）
         self.preview_bg_alpha = min(max(preview_bg_alpha, 0.0), 1.0)
+        # 每条 Note 轨道区域额外加深透明度（0.0 ~ 1.0）
+        self.track_bg_alpha = min(max(track_bg_alpha, 0.0), 1.0)
 
 
 def _create_figure(columns: list[ColumnInfo], dpi: int) -> tuple[Figure, Axes, Axes]:
@@ -182,6 +187,14 @@ def render(config: RenderConfig) -> None:
         canvas_h_px,
         alpha=config.preview_bg_alpha,
         x_min=-SIDE_MARKER_PADDING_PX,
+    )
+
+    # 每条 Note 轨道区域额外加深（不含轨道间隔栏），提高轨道区分度
+    apply_track_overlays(
+        ax,
+        columns,
+        canvas_h_px,
+        alpha=config.track_bg_alpha,
     )
 
     # 网格与标记

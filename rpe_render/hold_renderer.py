@@ -14,7 +14,9 @@ from matplotlib.axes import Axes
 from .constants import (
     BEAT_HEIGHT_PX,
     COLUMN_BEATS,
+    HOLD_BODY_OVERLAP_PX,
     HOLD_TRAJECTORY_COLOR,
+    HOLD_TRAJECTORY_MIN_DISPLACEMENT_PX,
     HOLD_TRAJECTORY_SAMPLES_PER_BEAT,
     HOLD_TRAJECTORY_WIDTH,
     NOTE_ICON_WIDTH,
@@ -48,7 +50,7 @@ class HoldRenderInfo:
     body_bottom_y: float  # Body 拉伸区域的底部 Y
     body_height: float  # Body 需要拉伸的高度（px）
     trajectory_points: list[tuple[float, float]] | None  # 轨迹采样点 [(x_px, y_px), ...]
-    end_x_pixel: float = 0.0  # End 贴图像素 X 坐标
+    x_pixel: float = 0.0  # 段内有效像素 X（Body/Head/End 对齐），已映射到本栏坐标
     has_head: bool = True  # 本段是否包含 Head 贴图
     has_end: bool = True  # 本段是否包含 End 贴图
     column_index: int = 0  # 本段所在分栏索引
@@ -57,6 +59,23 @@ class HoldRenderInfo:
 def _column_floor(beat: float) -> float:
     """beat 所在栏的起始拍数。"""
     return float(int(beat // COLUMN_BEATS) * COLUMN_BEATS)
+
+
+def _has_actual_displacement(
+    points: list[tuple[float, float]],
+    min_displacement_px: float = HOLD_TRAJECTORY_MIN_DISPLACEMENT_PX,
+) -> bool:
+    """轨迹采样点是否存在实际位移。
+
+    以采样点像素 X 的极差（max - min）衡量：小于阈值视为无位移
+    （轨迹与竖直 Body 完全重合），不渲染。
+
+    Args:
+        points: 轨迹采样点 [(x_px, y_px), ...]
+        min_displacement_px: 最小位移阈值（px）
+    """
+    xs = [p[0] for p in points]
+    return max(xs) - min(xs) >= min_displacement_px
 
 
 def sample_hold_trajectory(
@@ -152,15 +171,23 @@ def prepare_hold_render_info(
             has_head = col == col_s
             has_end = col == col_e
 
-            # End 的真实 X：endTime 时刻的判定线 X + positionX
+            # 段内有效 X（像素，映射到本栏坐标）：
+            # - 含 Head 的段（即起始栏段）取 Note 开始位置，note_info.x_pixel 在该栏内有效
+            # - 尾段/中段取本段起始时刻的判定线 X + positionX。
+            #   ★ 不能用 note_info.x_pixel：它是 Note 起始栏的坐标，跨栏 Hold 的
+            #   尾段若照用会被画进起始栏（bug: 跨 16 小节 Hold 被错误渲染到同一栏）
             col_offset = columns[col].pixel_left
-            end_line_x = judge_line_x_at(line, e) if line is not None else 0.0
-            end_true_x = end_line_x + info.note.position_x
-            end_x_px = x_to_pixel(end_true_x, col_offset)
+            if has_head:
+                seg_x_pixel = info.x_pixel
+            else:
+                seg_line_x = judge_line_x_at(line, seg_start) if line is not None else 0.0
+                seg_x_pixel = x_to_pixel(seg_line_x + info.note.position_x, col_offset)
 
-            # Body 边界：底部从 Head 图底开始（或栏底），顶部到 End 图顶（或栏顶）
-            body_bottom = y_head_seg + head_img_height / 2 if has_head else 0.0
-            body_top = y_end_seg - end_img_height / 2 if has_end else column_top
+            # Body 边界：底部从 Head 图底开始（或栏底），顶部到 End 图顶（或栏顶）。
+            # 头尾各向贴图内侧延伸 HOLD_BODY_OVERLAP_PX，使 Body 伸入 Head/End
+            # 贴图下方重叠拼接，消除精确对齐导致的接缝（与游戏内拼接方式一致）。
+            body_bottom = y_head_seg + head_img_height / 2 - HOLD_BODY_OVERLAP_PX if has_head else 0.0
+            body_top = y_end_seg - end_img_height / 2 + HOLD_BODY_OVERLAP_PX if has_end else column_top
             body_height = body_top - body_bottom
 
             trajectory = sample_hold_trajectory(
@@ -171,6 +198,10 @@ def prepare_hold_render_info(
                 samples_per_beat=sample_density,
                 column_offset_px=col_offset,
             )
+            # 设计文档：仅当 Hold 持续期间存在实际位移时才渲染运动轨迹。
+            # 无位移时轨迹与竖直 Body 重合，置 None 跳过渲染。
+            if trajectory and not _has_actual_displacement(trajectory):
+                trajectory = None
 
             infos.append(
                 HoldRenderInfo(
@@ -181,7 +212,7 @@ def prepare_hold_render_info(
                     body_bottom_y=body_bottom,
                     body_height=body_height,
                     trajectory_points=trajectory if trajectory else None,
-                    end_x_pixel=end_x_px,
+                    x_pixel=seg_x_pixel,
                     has_head=has_head,
                     has_end=has_end,
                     column_index=col,
@@ -201,7 +232,7 @@ def render_hold_body(
     拉伸方式:
     - 从 image_loader 获取纵向拉伸后的 Hold Body 贴图
     - 放置在 body_bottom_y 到 body_top_y 之间
-    - X 方向居中对齐到 Head 的 X 位置
+    - X 方向居中对齐到该段的段内 X（hold_info.x_pixel）
     """
     if hold_info.body_height <= 0:
         return
@@ -210,7 +241,7 @@ def render_hold_body(
         2, hold_info.note_info.is_multitap, int(round(hold_info.body_height))
     )
     img_w = img.shape[1]
-    cx = hold_info.note_info.x_pixel
+    cx = hold_info.x_pixel  # 段内 X（跨栏尾段已映射到本栏坐标）
     extent = [
         cx - img_w / 2,
         cx + img_w / 2,
@@ -238,11 +269,11 @@ def render_hold_head_end(
 
     if hold_info.has_head:
         img = image_loader.get_note_image(2, hl)
-        _place_centered(ax, img, hold_info.note_info.x_pixel, hold_info.head_y, z)
+        _place_centered(ax, img, hold_info.x_pixel, hold_info.head_y, z)
 
     if hold_info.has_end:
         img = image_loader.get_hold_end_image(hl)
-        _place_centered(ax, img, hold_info.note_info.x_pixel, hold_info.end_y, z)
+        _place_centered(ax, img, hold_info.x_pixel, hold_info.end_y, z)
 
 
 def render_hold_trajectory(

@@ -33,14 +33,14 @@ NOTE_ICON_WIDTH: int = 54
 # 背景色
 BG_COLOR: str = "#FAFAFA"
 
-# 拍线颜色与透明度
-BEAT_LINE_COLOR: str = "#000000"
-BEAT_LINE_ALPHA: float = 0.18
+# 拍线颜色与透明度（灰色；在深色轨道底色上清晰可见）
+BEAT_LINE_COLOR: str = "#A8A8A8"
+BEAT_LINE_ALPHA: float = 0.35
 BEAT_LINE_WIDTH: float = 0.5
 
-# 小节线颜色与透明度（每 4 拍）
-BAR_LINE_COLOR: str = "#000000"
-BAR_LINE_ALPHA: float = 0.36
+# 小节线颜色与透明度（每 4 拍，比拍线更亮一档以区分）
+BAR_LINE_COLOR: str = "#D8D8D8"
+BAR_LINE_ALPHA: float = 0.55
 BAR_LINE_WIDTH: float = 1.2
 
 # Hold 轨迹曲线
@@ -59,6 +59,10 @@ BPM_TEXT_COLOR: str = "#FFFFFF"
 # 谱面预览区半透明黑色底色透明度（0.0 = 关闭，1.0 = 不透明黑）
 # 覆盖在曲绘背景之上、网格线之下，用于压暗背景突出白色标记文字与 Note
 PREVIEW_BG_ALPHA: float = 0.55
+
+# 每条 Note 轨道（分栏竖直区域，不含轨道间隔栏）的额外加深透明度（0.0 = 关闭）
+# 在预览区底色之上再加深一档，提高相邻轨道之间的区分度
+TRACK_BG_ALPHA: float = 0.75
 
 # 栏外侧文字边距（px）
 MARKER_MARGIN_PX: float = 20.0
@@ -83,6 +87,12 @@ HOLD_BODY_HL_IMAGE: str = "HoldHL.png"
 HOLD_END_IMAGE: str = "HoldEnd.png"
 HOLD_END_HL_IMAGE: str = "HoldEndHL.png"
 
+# Hold Body 与 Head/End 贴图的重叠延伸量（px）
+# Body 向两端各延伸该距离伸入 Head/End 贴图下方，消除精确对齐产生的接缝
+# （与游戏内及主流谱面渲染器的 Hold 拼接方式一致）。
+# 默认取 1px 的轻微重叠：足够覆盖抗锯齿接缝，又不会让 Hold 视觉上变长。
+HOLD_BODY_OVERLAP_PX: float = 1.0
+
 # 贴图目录（相对仓库根目录的默认值）
 NOTES_DIR: str = "resources/notes"
 
@@ -96,6 +106,11 @@ BEZIER_INTERPOLATION_DENSITY: int = 256
 
 # Hold 轨迹曲线采样密度（每拍采样点数）
 HOLD_TRAJECTORY_SAMPLES_PER_BEAT: int = 4
+
+# Hold 轨迹渲染的最小位移阈值（像素 X 范围，px）
+# 设计文档：仅当 Hold 持续期间存在实际位移时才渲染运动轨迹。
+# 无位移时轨迹与竖直 Body 完全重合，渲染无意义，直接跳过。
+HOLD_TRAJECTORY_MIN_DISPLACEMENT_PX: float = 1.0
 
 # ==================== 标记规则 ====================
 
@@ -128,3 +143,85 @@ BACKGROUND_BLUR_SIGMA: float = 15.0
 
 # 曲绘亮度系数（1.0 为原始亮度）
 BACKGROUND_BRIGHTNESS: float = 0.75
+
+# ==================== 配置文件覆盖 ====================
+
+import os
+import warnings
+from pathlib import Path
+
+# 配置文件机制：默认读取当前工作目录下的 render_config.json，
+# 也可通过环境变量 RPE_RENDER_CONFIG 指定路径，或调用 load_config(path) 手动加载。
+# 文件中每个键对应本模块的一个常量名（大小写不敏感），值将覆盖默认值；
+# 未知键、类型不匹配的键会被忽略并发出警告；以 "_" 开头的键视为注释。
+# 这样无需修改代码即可自由调整渲染参数；tests 假定默认配置（不创建配置文件）。
+CONFIG_FILE_NAME: str = "render_config.json"
+CONFIG_ENV_VAR: str = "RPE_RENDER_CONFIG"
+
+# 配置机制自身的名字，不允许被配置文件覆盖
+_CONFIG_INTERNAL_KEYS = frozenset(
+    {"load_config", "CONFIG_FILE_NAME", "CONFIG_ENV_VAR"}
+)
+
+
+def load_config(path: str | Path | None = None) -> dict[str, object]:
+    """从 JSON 配置文件加载覆盖值并应用到本模块常量。
+
+    Args:
+        path: 配置文件路径；None 时优先使用环境变量 RPE_RENDER_CONFIG，
+            未设置则读取当前目录下的 render_config.json。
+
+    Returns:
+        实际应用的 {常量名: 新值} 字典（无配置文件或文件无效时为空）。
+    """
+    if path is None:
+        path = os.environ.get(CONFIG_ENV_VAR, CONFIG_FILE_NAME)
+    path = Path(path)
+    if not path.is_file():
+        return {}
+
+    import json
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as exc:
+        warnings.warn(f"忽略配置文件 {path}: {exc}", stacklevel=2)
+        return {}
+
+    if not isinstance(data, dict):
+        warnings.warn(f"忽略配置文件 {path}: 顶层必须是 JSON 对象", stacklevel=2)
+        return {}
+
+    mod = globals()
+    applied: dict[str, object] = {}
+    for key, value in data.items():
+        if key.startswith("_"):
+            continue  # 下划线开头视为注释，不生效也不告警
+        target = key
+        if target not in mod or target in _CONFIG_INTERNAL_KEYS:
+            target = key.upper()
+        if (
+            target not in mod
+            or target in _CONFIG_INTERNAL_KEYS
+            or not target.isupper()
+            or callable(mod[target])
+        ):
+            warnings.warn(
+                f"配置文件 {path}: 忽略未知配置项 '{key}'", stacklevel=2
+            )
+            continue
+        expected_type = type(mod[target])
+        if not isinstance(value, expected_type):
+            warnings.warn(
+                f"配置文件 {path}: 配置项 '{key}' 类型应为 "
+                f"{expected_type.__name__}，忽略 '{value!r}'",
+                stacklevel=2,
+            )
+            continue
+        mod[target] = value
+        applied[target] = value
+    return applied
+
+
+load_config()  # 模块导入时应用环境变量 / 默认配置文件中的覆盖
