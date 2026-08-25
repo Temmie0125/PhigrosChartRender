@@ -44,6 +44,8 @@ def compute_interval_markers(
       间隔大于 1/4 拍（如八分音符 1/2 拍）不标记
     - 标记文字为 N 分音符刻度：label = round(4 / interval)，
       如间隔 1/4 拍（16 分）→ "16"，1/8 拍（32 分）→ "32"
+    - 标记位置取两个 Note 之间的间隔中点（而非第二个 Note 的位置），
+      使标记落在间隔中央；栏索引按中点所属栏计算
 
     Returns:
         [(beat, column_index, label), ...]
@@ -59,7 +61,10 @@ def compute_interval_markers(
 
         if 0 < interval <= MAX_INTERVAL_MARK_BEAT:
             label = str(round(4.0 / interval))
-            markers.append((curr.beat, float(curr.column), label))
+            mid_beat = (prev.beat + curr.beat) / 2.0  # 间隔中点
+            markers.append(
+                (mid_beat, float(int(mid_beat // COLUMN_BEATS)), label)
+            )
 
     return markers
 
