@@ -161,6 +161,9 @@ def place_notes_on_axes(
     晚的在上层。zorder 枚举与 renderer.zorder_map 使用同一排序键（note_zorder_key），
     保证 Hold Head/End 与普通 Note 的层级一致。
     对齐方式: 贴图中心对齐到像素坐标。
+    clip_on=False: 栏底部（beat=栏起始拍）的 Note 贴图可越过主区底边界
+    绘制在信息栏顶部边框之上（主区 Axes zorder 高于信息栏），
+    避免最下方 Note 的下半部分被边框遮挡。
     """
     sorted_notes = sorted(notes_info, key=note_zorder_key)
     for z_idx, info in enumerate(sorted_notes):
@@ -180,4 +183,5 @@ def place_notes_on_axes(
             extent=extent,
             zorder=NOTE_BASE_ZORDER + z_idx,
             interpolation="bilinear",
+            clip_on=False,
         )

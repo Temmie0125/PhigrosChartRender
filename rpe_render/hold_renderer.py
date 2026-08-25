@@ -263,7 +263,13 @@ def render_hold_body(
         hold_info.body_bottom_y,
         hold_info.body_top_y,
     ]
-    ax.imshow(img, extent=extent, zorder=HOLD_BODY_ZORDER, interpolation="bilinear")
+    ax.imshow(
+        img,
+        extent=extent,
+        zorder=HOLD_BODY_ZORDER,
+        interpolation="bilinear",
+        clip_on=False,
+    )
 
 
 def render_hold_head_end(
@@ -313,6 +319,7 @@ def render_hold_trajectory(
         linewidth=HOLD_TRAJECTORY_WIDTH,
         zorder=HOLD_TRAJECTORY_ZORDER,
         solid_capstyle="round",
+        clip_on=False,
     )
 
 
@@ -323,7 +330,11 @@ def _place_centered(
     cy: float,
     zorder: float,
 ) -> None:
-    """将贴图中心对齐到 (cx, cy) 放置。"""
+    """将贴图中心对齐到 (cx, cy) 放置。
+
+    clip_on=False: 栏底部（beat=栏起始拍）的 Head/End 贴图可越过主区
+    底边界绘制在信息栏顶部边框之上，避免被边框遮挡。
+    """
     img_h, img_w = img.shape[0], img.shape[1]
     extent = [
         cx - img_w / 2,
@@ -331,7 +342,13 @@ def _place_centered(
         cy - img_h / 2,
         cy + img_h / 2,
     ]
-    ax.imshow(img, extent=extent, zorder=zorder, interpolation="bilinear")
+    ax.imshow(
+        img,
+        extent=extent,
+        zorder=zorder,
+        interpolation="bilinear",
+        clip_on=False,
+    )
 
 
 __all__ = [

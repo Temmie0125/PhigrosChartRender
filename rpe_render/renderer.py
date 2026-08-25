@@ -120,6 +120,12 @@ def _create_figure(columns: list[ColumnInfo], dpi: int) -> tuple[Figure, Axes, A
     ax_info.set_ylim(0, INFO_BAR_HEIGHT_PX)
     ax_info.axis("off")
 
+    # 显式固定 Axes 层级：主区绘制在信息栏之上。栏底部的 Note 贴图
+    # 关闭了裁剪（见 note_renderer / hold_renderer），可越过两区交界
+    # 绘制在信息栏顶部边框之上，避免最下方 Note 下半部分被边框遮挡
+    ax_info.set_zorder(1)
+    ax_main.set_zorder(2)
+
     return fig, ax_main, ax_info
 
 
