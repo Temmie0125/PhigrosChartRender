@@ -19,6 +19,7 @@ from .constants import (
     MARKER_MARGIN_PX,
     MARKER_TEXT_COLOR,
 )
+from .fonts import get_font
 from .models import BPMEvent, ColumnInfo
 from .time_utils import timet_to_beats
 
@@ -100,7 +101,7 @@ def render_single_column_grid(
             str(beat),
             ha="right",
             va=_edge_va(y, col),
-            fontsize=8,
+            fontproperties=get_font(8.0),
             color=MARKER_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )
@@ -118,7 +119,7 @@ def render_single_column_grid(
                 f"BPM:{bpm_event.bpm:g}",
                 ha="left",
                 va="top",
-                fontsize=7,
+                fontproperties=get_font(7.0),
                 color=BPM_TEXT_COLOR,
                 zorder=MARKER_ZORDER,
             )

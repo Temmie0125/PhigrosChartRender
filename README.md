@@ -18,6 +18,7 @@
 - **底部信息栏**：曲名、时长、难度、曲师、谱师、基准 BPM 与四类 Note 统计
 - **可选背景**：曲绘高斯模糊（σ=15）作为整体背景，不指定则输出透明底 PNG
 - **预览区底色**：谱面预览区叠加可配置透明度的半透明黑色底色，压暗背景突出白色标记与 Note
+- **自定义字体**：所有渲染文字（拍号/BPM/时值/计数/信息栏）统一使用可配置的主字体（默认 `resources/fonts/phi.ttf`），信息栏中文在字体缺字时按字形回退到系统 CJK 字体
 - **配置文件**：所有渲染参数可通过 `render_config.json` 覆盖默认值，无需修改代码
 
 ## 环境要求
@@ -67,6 +68,7 @@ python -m rpe_render chart.json --config my_settings.json
 ```
 
 - 配置文件键名对应 `constants.py` 中的常量名，**大小写不敏感**（如 `beat_height_px` 等价于 `BEAT_HEIGHT_PX`）
+- 主字体通过 `FONT_PATH` 配置（默认 `resources/fonts/phi.ttf`，相对仓库根目录或绝对路径）；文件缺失或加载失败时回退到系统默认字体并告警
 - 未知键与类型不匹配的键会被忽略并发出警告；以 `_` 开头的键视为注释
 - 查找顺序：`--config` 参数 > 环境变量 `RPE_RENDER_CONFIG` > 当前目录下 `render_config.json`
 - 参数优先级：命令行参数 > 配置文件 > 代码默认值
@@ -119,6 +121,7 @@ rpe_render/
 ├── marker_renderer.py      # 时值间隔标记、累计计数标记
 ├── info_bar.py             # 底部信息栏
 ├── background.py           # 曲绘模糊背景、预览区/轨道加深覆盖层
+├── fonts.py                # 自定义字体管理（FONT_PATH 加载、CJK 回退）
 ├── constants.py            # 所有可调常量集中管理（支持 render_config.json 覆盖）
 └── easing/
     ├── functions.py        # 29 种缓动函数（移植自 TypeScript 版）

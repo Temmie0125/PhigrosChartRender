@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 
-import matplotlib
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from .constants import INFO_BAR_BG_COLOR, INFO_BAR_TEXT_COLOR
+from .fonts import configure_cjk_font, get_font
 from .models import ChartData, NoteCountStats, NoteData
 from .time_utils import timet_to_beats
 
@@ -16,47 +16,6 @@ logger = logging.getLogger("rpe_render")
 
 META_FONT_SIZE = 22
 STATS_FONT_SIZE = 26
-
-# 常见中文字体回退链（Windows / macOS / Linux）
-_CJK_FONT_CANDIDATES = (
-    "Microsoft YaHei",
-    "SimHei",
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans CJK SC",
-    "Source Han Sans SC",
-    "WenQuanYi Micro Hei",
-)
-
-_font_configured = False
-
-
-def configure_cjk_font() -> None:
-    """配置 matplotlib 使用可用的中文字体（幂等）。"""
-    global _font_configured
-    if _font_configured:
-        return
-
-    try:
-        from matplotlib import font_manager
-
-        available = {f.name for f in font_manager.fontManager.ttflist}
-        for name in _CJK_FONT_CANDIDATES:
-            if name in available:
-                matplotlib.rcParams["font.sans-serif"] = [name]
-                logger.debug("Using CJK font: %s", name)
-                break
-        else:
-            logger.warning(
-                "No CJK font found among %s; Chinese labels may show as boxes",
-                ", ".join(_CJK_FONT_CANDIDATES),
-            )
-    except Exception:  # noqa: BLE001 - 字体探测失败不应阻断渲染
-        logger.exception("CJK font detection failed")
-
-    # 负号在非 DejaVu 字体下的显示修正
-    matplotlib.rcParams["axes.unicode_minus"] = False
-    _font_configured = True
 
 
 def compute_note_stats(notes: list[NoteData]) -> NoteCountStats:
@@ -179,7 +138,7 @@ def render_info_bar(
             text,
             ha="left",
             va="center",
-            fontsize=META_FONT_SIZE,
+            fontproperties=get_font(META_FONT_SIZE),
             color=INFO_BAR_TEXT_COLOR,
             transform=ax.transAxes,
         )
@@ -197,7 +156,7 @@ def render_info_bar(
             text,
             ha="right",
             va="center",
-            fontsize=STATS_FONT_SIZE,
+            fontproperties=get_font(STATS_FONT_SIZE),
             color=INFO_BAR_TEXT_COLOR,
             transform=ax.transAxes,
         )

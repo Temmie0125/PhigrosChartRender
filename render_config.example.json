@@ -32,6 +32,7 @@
   "HOLD_END_IMAGE": "HoldEnd.png",
   "HOLD_END_HL_IMAGE": "HoldEndHL.png",
   "NOTES_DIR": "resources/notes",
+  "FONT_PATH": "resources/fonts/phi.ttf",
   "OUTPUT_DPI": 150,
   "BEZIER_INTERPOLATION_DENSITY": 256,
   "HOLD_TRAJECTORY_SAMPLES_PER_BEAT": 4,

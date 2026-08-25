@@ -20,6 +20,7 @@ from .constants import (
     NOTE_OVERLAP_LABEL_OFFSET_PX,
     NOTE_OVERLAP_THRESHOLD_X,
 )
+from .fonts import get_font
 from .models import ColumnInfo, NoteRenderInfo
 
 MARKER_ZORDER = 20
@@ -172,7 +173,7 @@ def render_markers(
             label,
             ha="right",
             va=_edge_va(y, col),
-            fontsize=7,
+            fontproperties=get_font(7.0),
             color=INTERVAL_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )
@@ -190,7 +191,7 @@ def render_markers(
             str(count),
             ha="left",
             va=_edge_va(y, col),
-            fontsize=7,
+            fontproperties=get_font(7.0),
             color=COUNT_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )
@@ -215,7 +216,7 @@ def render_overlap_markers(
             f"×{len(group)}",
             ha="left",
             va="center",
-            fontsize=8,
+            fontproperties=get_font(8.0),
             color=MARKER_TEXT_COLOR,
             zorder=MARKER_ZORDER,
         )
