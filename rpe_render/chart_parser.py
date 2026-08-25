@@ -172,6 +172,8 @@ def parse_judge_line(raw: dict) -> JudgeLineData:
     """
     layers: list[EventLayer] = []
     for layer_raw in raw.get("eventLayers", []):
+        if layer_raw is None:
+            continue  # RPE 允许空事件层以 null 表示（等价于无事件）
         layers.append(
             EventLayer(
                 move_x_events=parse_events(layer_raw.get("moveXEvents")),
