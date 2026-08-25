@@ -4,3 +4,6 @@ tests/
 
 # 渲染输出产物
 /output*.png
+
+# 用户自定义配置
+/render_config.json
