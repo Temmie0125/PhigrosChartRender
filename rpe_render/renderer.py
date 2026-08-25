@@ -19,7 +19,7 @@ from .affected_area_renderer import (
     render_affected_boxes,
 )
 from .background import (
-    apply_background_to_axes,
+    apply_background_to_canvas,
     apply_preview_overlay,
     apply_track_overlays,
     load_and_blur_background,
@@ -109,6 +109,15 @@ def _create_figure(columns: list[ColumnInfo], dpi: int) -> tuple[Figure, Axes, A
     )
     ax_main.set_ylim(0, COLUMN_BEATS * BEAT_HEIGHT_PX)
     ax_main.axis("off")
+    # 信息栏与主区共用同一像素坐标空间（xlim 与主区一致，ylim 为信息栏高度），
+    # 使整图背景曲绘能按像素精确切片铺到信息栏
+    ax_info.set_xlim(
+        -SIDE_MARKER_PADDING_PX,
+        columns[-1].pixel_right
+        + columns[-1].pixel_gap_right
+        + SIDE_MARKER_PADDING_PX,
+    )
+    ax_info.set_ylim(0, INFO_BAR_HEIGHT_PX)
     ax_info.axis("off")
 
     return fig, ax_main, ax_info
@@ -204,16 +213,19 @@ def render(config: RenderConfig) -> None:
     )
     canvas_h_px = COLUMN_BEATS * BEAT_HEIGHT_PX
 
-    # [可选] 背景
+    # [可选] 背景：模糊曲绘按总画布（主区 + 信息栏）整体裁剪后
+    # 切片铺满两个 Axes，保证整图背景连续一致
     has_background = False
     if config.background_path:
         bg = load_and_blur_background(config.background_path)
         if bg is not None:
-            apply_background_to_axes(
+            apply_background_to_canvas(
                 ax,
+                ax_info,
                 bg,
                 canvas_w_px,
                 canvas_h_px,
+                INFO_BAR_HEIGHT_PX,
                 x_min=-SIDE_MARKER_PADDING_PX,
             )
             has_background = True
@@ -284,17 +296,13 @@ def render(config: RenderConfig) -> None:
             zorder=zorder_map.get(id(hi.note_info), 11),
         )
 
-    # 底部信息栏
-    canvas_w_px_total = columns[-1].pixel_right
-    canvas_h_px_total = COLUMN_BEATS * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
+    # 底部信息栏（canvas_w_px 含两侧标记边距，与背景坐标一致）
     render_info_bar(
-        fig,
         ax_info,
         chart,
         note_counts,
         duration_sec,
-        canvas_w_px_total,
-        canvas_h_px_total,
+        canvas_w_px,
     )
 
     # ===== Phase 5: 输出 =====

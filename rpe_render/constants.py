@@ -48,9 +48,25 @@ HOLD_TRAJECTORY_COLOR: str = "#AAAAAA"
 HOLD_TRAJECTORY_WIDTH: float = 1.0
 
 # 信息栏
-INFO_BAR_BG_COLOR: str = "#F0F0F0"
-INFO_BAR_TEXT_COLOR: str = "#333333"
-INFO_BAR_HEIGHT_PX: int = 280
+INFO_BAR_TEXT_COLOR: str = "#FFFFFF"
+# 信息栏高度（px）：为标题 + 5 行 Note 统计 + 四周统一边距（与左右约 29px 一致）预留空间
+INFO_BAR_HEIGHT_PX: int = 320
+
+# 信息栏标题颜色（Basic Information / Notes Info）
+INFO_BAR_TITLE_COLOR: str = "#4CC3F8"
+
+# 信息栏双边框：最外层为 0.75 透明度深灰色方框，间隔 8px 为内层圆角边框
+INFO_BAR_BORDER_COLOR: str = "#4A4A4A"  # 深灰色
+INFO_BAR_OUTER_BORDER_ALPHA: float = 0.75
+INFO_BAR_BORDER_WIDTH_PX: float = 3.0
+INFO_BAR_BORDER_GAP_PX: float = 8.0
+INFO_BAR_ROUNDING_PX: float = 8.0
+
+# 信息栏 Note 统计文本颜色（按 Note 类型区分）
+NOTE_COLOR_TAP: str = "#44C0FE"
+NOTE_COLOR_DRAG: str = "#EBEE6B"
+NOTE_COLOR_HOLD: str = "#A1E5FC"
+NOTE_COLOR_FLICK: str = "#F84566"
 
 # 标记文字颜色（拍号/BPM/时值/计数）—— 白色，配合半透明黑色预览底色提高可读性
 MARKER_TEXT_COLOR: str = "#FFFFFF"

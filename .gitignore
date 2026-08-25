@@ -1,5 +1,6 @@
 docs/
 .pytest_cache/
+__pycache__/
 tests/
 
 # 渲染输出产物

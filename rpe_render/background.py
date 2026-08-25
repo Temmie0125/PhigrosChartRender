@@ -127,6 +127,61 @@ def apply_background_to_axes(
     )
 
 
+def apply_background_to_canvas(
+    ax_main: Axes,
+    ax_info: Axes,
+    bg_image: np.ndarray,
+    canvas_width_px: float,
+    canvas_height_px: float,
+    info_height_px: float,
+    x_min: float = 0.0,
+    brightness: float = BACKGROUND_BRIGHTNESS,
+) -> None:
+    """将模糊曲绘作为整图背景同时铺满主区与底部信息栏。
+
+    曲绘先按"总画布（主区 + 信息栏高度之和）"cover 模式裁剪一次，
+    再按区域切分：主区使用上部切片、信息栏使用下部切片。
+    这样两区域的背景来自同一张连续图片（整图一致），而不是各自
+    独立居中裁剪（否则信息栏会缩放/裁切出与主区无法衔接的画面）。
+
+    Args:
+        ax_main: 主时间轴 Axes（使用画布上部切片）
+        ax_info: 底部信息栏 Axes（使用画布下部切片）
+        bg_image: 模糊后的 RGB numpy 数组 (H, W, 3)
+        canvas_width_px: 画布宽度（px，含两侧标记边距）
+        canvas_height_px: 主区高度（px）
+        info_height_px: 信息栏高度（px）
+        x_min: 背景在 Axes 中的左边界（与 ax_main 的 xlim 左端一致）
+        brightness: 亮度系数（1.0 为原始亮度），作用于整图一次
+    """
+    target_w = max(1, int(round(canvas_width_px)))
+    main_h = max(1, int(round(canvas_height_px)))
+    info_h = max(1, int(round(info_height_px)))
+
+    pil_img = Image.fromarray(bg_image).convert("RGB")
+    # 一次 cover 裁剪到总画布（主区 + 信息栏），保证两区域背景连续
+    pil_img = cover_crop(pil_img, target_w, main_h + info_h)
+    if brightness != 1.0:
+        pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
+    arr = np.array(pil_img)
+
+    # 主区: 画布上部 main_h 行；信息栏: 画布底部 info_h 行
+    ax_main.imshow(
+        arr[:main_h],
+        extent=[x_min, x_min + canvas_width_px, 0, canvas_height_px],
+        aspect="auto",
+        zorder=BACKGROUND_ZORDER,
+        interpolation="bilinear",
+    )
+    ax_info.imshow(
+        arr[main_h:],
+        extent=[x_min, x_min + canvas_width_px, 0, info_height_px],
+        aspect="auto",
+        zorder=BACKGROUND_ZORDER,
+        interpolation="bilinear",
+    )
+
+
 def apply_preview_overlay(
     ax: Axes,
     canvas_width_px: float,
