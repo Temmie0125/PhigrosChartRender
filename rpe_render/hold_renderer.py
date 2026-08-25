@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import cos, radians
 
 import numpy as np
 from matplotlib.axes import Axes
@@ -21,7 +22,7 @@ from .constants import (
     HOLD_TRAJECTORY_WIDTH,
     NOTE_ICON_WIDTH,
 )
-from .easing.event_evaluator import judge_line_x_at
+from .easing.event_evaluator import judge_line_rotate_at, judge_line_x_at
 from .models import ColumnInfo, JudgeLineData, NoteData, NoteRenderInfo
 from .timeline import x_to_pixel
 
@@ -110,8 +111,14 @@ def sample_hold_trajectory(
 
     for i in range(num_samples + 1):
         t = start_beat + (duration * i / num_samples)
-        jl_x = judge_line_x_at(line, t) if line is not None else 0.0
-        true_x = jl_x + note.position_x
+        if line is not None:
+            jl_x = judge_line_x_at(line, t)
+            angle = judge_line_rotate_at(line, t)
+        else:
+            jl_x = 0.0
+            angle = 0.0
+        # 旋转修正: true_x = 判定线 X + positionX·cos(角度)
+        true_x = jl_x + note.position_x * cos(radians(angle))
         y_px = (t - col_base) * BEAT_HEIGHT_PX
         x_px = x_to_pixel(true_x, column_offset_px)
         points.append((x_px, y_px))
@@ -134,7 +141,7 @@ def prepare_hold_render_info(
         2. 计算 End 贴图 Y（endTime 对应的栏内像素 Y，含真实 End X）
         3. 计算 Body 区域：Head 贴图底部 到 End 贴图顶部（按栏截断）
         4. 从 startTime 到 endTime 按 sample_density 采样轨迹曲线：
-           每个采样点计算 judge_line_x_at(line, t) + note.positionX → 像素 X
+           每个采样点计算 judge_line_x_at(line, t) + positionX·cos(rotate(t)) → 像素 X
 
     Args:
         hold_notes: 所有 Hold 类型音符的 NoteRenderInfo
@@ -180,8 +187,16 @@ def prepare_hold_render_info(
             if has_head:
                 seg_x_pixel = info.x_pixel
             else:
-                seg_line_x = judge_line_x_at(line, seg_start) if line is not None else 0.0
-                seg_x_pixel = x_to_pixel(seg_line_x + info.note.position_x, col_offset)
+                if line is not None:
+                    seg_line_x = judge_line_x_at(line, seg_start)
+                    seg_angle = judge_line_rotate_at(line, seg_start)
+                else:
+                    seg_line_x = 0.0
+                    seg_angle = 0.0
+                seg_x_pixel = x_to_pixel(
+                    seg_line_x + info.note.position_x * cos(radians(seg_angle)),
+                    col_offset,
+                )
 
             # Body 边界：底部从 Head 图底开始（或栏底），顶部到 End 图顶（或栏顶）。
             # 头尾各向贴图内侧延伸 HOLD_BODY_OVERLAP_PX，使 Body 伸入 Head/End

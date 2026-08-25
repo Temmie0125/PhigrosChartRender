@@ -9,6 +9,7 @@ import logging
 from math import ceil
 
 from .constants import (
+    AFFECTED_AREA_EXTRA_GAP_PX,
     BEAT_HEIGHT_PX,
     COLUMN_BEATS,
     COLUMN_GAP,
@@ -24,7 +25,10 @@ from .models import ChartData, ColumnInfo, JudgeLineData, NoteData
 logger = logging.getLogger("rpe_render")
 
 
-def compute_columns(max_beat: float) -> list[ColumnInfo]:
+def compute_columns(
+    max_beat: float,
+    affected_columns: set[int] | None = None,
+) -> list[ColumnInfo]:
     """根据谱面总拍数计算所有分栏信息。
 
     分栏规则:
@@ -35,6 +39,9 @@ def compute_columns(max_beat: float) -> list[ColumnInfo]:
 
     Args:
         max_beat: 谱面最大拍数
+        affected_columns: 受影响栏（近竖直判定线段所在栏）索引集合；
+            这些栏右侧额外增加 AFFECTED_AREA_EXTRA_GAP_PX 间距，
+            为水平分布小区域预留空间。None 时行为与旧版完全一致。
 
     Returns:
         分栏信息列表（至少 1 栏）
@@ -47,21 +54,32 @@ def compute_columns(max_beat: float) -> list[ColumnInfo]:
         if num_columns == 0:
             num_columns = 1
 
+    affected = affected_columns or set()
+
     columns: list[ColumnInfo] = []
     for index in range(num_columns):
         beat_start = index * COLUMN_BEATS
         beat_end = beat_start + COLUMN_BEATS
-        pixel_left = index * (COLUMN_WIDTH + COLUMN_GAP)
+        # 累积式左边界：受影响的中间栏在右侧额外占位，后续栏整体右移
+        pixel_left = float(
+            sum(
+                COLUMN_WIDTH + COLUMN_GAP + (AFFECTED_AREA_EXTRA_GAP_PX if i in affected else 0)
+                for i in range(index)
+            )
+        )
         pixel_right = pixel_left + COLUMN_WIDTH
         columns.append(
             ColumnInfo(
                 index=index,
                 beat_start=float(beat_start),
                 beat_end=float(beat_end),
-                pixel_left=float(pixel_left),
-                pixel_right=float(pixel_right),
+                pixel_left=pixel_left,
+                pixel_right=pixel_right,
                 pixel_bottom=0.0,
                 pixel_top=COLUMN_BEATS * BEAT_HEIGHT_PX,
+                pixel_gap_right=float(AFFECTED_AREA_EXTRA_GAP_PX)
+                if index in affected
+                else 0.0,
             )
         )
     return columns
@@ -86,7 +104,7 @@ def beat_to_pixel(beat: float, columns: list[ColumnInfo]) -> tuple[int, float, f
 
     col_index = min(int(beat // COLUMN_BEATS), len(columns) - 1)
     y_in_column = (beat - col_index * COLUMN_BEATS) * BEAT_HEIGHT_PX
-    x_offset = col_index * (COLUMN_WIDTH + COLUMN_GAP)
+    x_offset = columns[col_index].pixel_left  # 与 compute_columns 的累积公式保持同步
     return col_index, y_in_column, float(x_offset)
 
 
@@ -152,12 +170,16 @@ def merge_all_notes(chart: ChartData) -> list[tuple[NoteData, JudgeLineData]]:
 def compute_canvas_size(columns: list[ColumnInfo]) -> tuple[float, float]:
     """计算最终画布尺寸（英寸）。
 
-    宽度 = 最后栏右边界 + 两侧标记边距 / OUTPUT_DPI；
+    宽度 = 最后栏右边界 + 末栏额外间距 + 两侧标记边距 / OUTPUT_DPI；
     高度 = (栏高 + 信息栏高) / OUTPUT_DPI。
 
     Returns:
         (width_inches, height_inches)
     """
-    width_px = columns[-1].pixel_right + 2 * SIDE_MARKER_PADDING_PX
+    width_px = (
+        columns[-1].pixel_right
+        + columns[-1].pixel_gap_right
+        + 2 * SIDE_MARKER_PADDING_PX
+    )
     height_px = COLUMN_BEATS * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
     return width_px / OUTPUT_DPI, height_px / OUTPUT_DPI

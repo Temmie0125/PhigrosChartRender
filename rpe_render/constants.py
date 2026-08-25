@@ -152,6 +152,42 @@ BACKGROUND_BLUR_SIGMA: float = 15.0
 # 曲绘亮度系数（1.0 为原始亮度）
 BACKGROUND_BRIGHTNESS: float = 0.75
 
+# ==================== 受影响段（近竖直判定线）渲染 ====================
+
+# 判定线角度（度）在 [±AFFECTED_ANGLE_MIN_DEG, ±AFFECTED_ANGLE_MAX_DEG] 之间时
+# 视为"接近竖直"：note 落点压缩在判定线附近，几乎看不出水平走向。
+# 对这类段在主栏绘制圆角白框提示，并在受影响栏右侧的小区域中渲染水平分布。
+AFFECTED_ANGLE_MIN_DEG: float = 75.0  # |角度| 下限（含）
+AFFECTED_ANGLE_MAX_DEG: float = 90.0  # |角度| 上限（含）
+
+# 受影响栏右侧额外间距（为小区域预留画布空间）（px）
+# 需满足 EXTRA_GAP + SIDE_MARKER_PADDING >= MARGIN_LEFT + WIDTH（=214），
+# 否则末栏的小区域会被画布右缘裁掉。
+AFFECTED_AREA_EXTRA_GAP_PX: float = 150.0
+
+# 小区域左缘相对栏右缘的偏移（避开计数标记 20px + 文字）（px）
+AFFECTED_AREA_MARGIN_LEFT_PX: float = 44.0
+
+# 小区域内容宽度（positionX ±675 全宽映射）（px）
+AFFECTED_AREA_WIDTH_PX: float = 170.0
+
+# 小区域边框（底色与主栏轨道一致，不单独填充）
+AFFECTED_AREA_BORDER_COLOR: str = "#CCCCCC"
+
+# 圆角白框描边（空心，不填充）
+AFFECTED_BOX_EDGE_COLOR: str = "#FFFFFF"
+
+# 白框内相邻受影响 note 的最大间隔（拍）：间隔超过该值时拆分为独立白框，
+# 避免无 note 的长段被超长白框框出；同一栏内发生重合的白框会合并为一个大框。
+AFFECTED_BOX_CLUSTER_GAP_BEATS: float = 8.0
+
+# 白框横向边距（图标半宽之外）/ 纵向边距（px）
+AFFECTED_BOX_PAD_X_PX: float = 6.0
+AFFECTED_BOX_PAD_Y_PX: float = 6.0
+
+# 白框圆角半径（px）
+AFFECTED_BOX_ROUNDING_PX: float = 8.0
+
 # ==================== 配置文件覆盖 ====================
 
 import os

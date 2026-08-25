@@ -118,6 +118,7 @@ class NoteRenderInfo:
     y_pixel: float  # 像素 Y 坐标（startTime）
     y_pixel_end: float  # 像素 Y 坐标（endTime，仅 Hold 有效）
     judge_line: object | None = None  # 来源判定线引用（供 Hold 轨迹采样）
+    line_angle: float = 0.0  # note startTime 时判定线角度（度，4 层 rotateEvents 叠加）
 
 
 @dataclass
@@ -131,6 +132,7 @@ class ColumnInfo:
     pixel_right: float  # 栏右侧像素 X
     pixel_bottom: float  # 栏底部像素 Y
     pixel_top: float  # 栏顶部像素 Y
+    pixel_gap_right: float = 0.0  # 该栏右侧额外间距（受影响栏 > 0，其余 0）
 
 
 @dataclass

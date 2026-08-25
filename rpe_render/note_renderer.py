@@ -26,6 +26,15 @@ logger = logging.getLogger("rpe_render")
 NOTE_BASE_ZORDER = 10
 
 
+def note_zorder_key(info: NoteRenderInfo) -> tuple[float, int]:
+    """Note 渲染顺序排序键（zorder 分配用）。
+
+    同 beat 内 Hold 排前（zorder 更低、贴图先画），保证其他类型 Note
+    不被 Hold 头遮挡（bug #1）；跨 beat 保持"晚的在上层"。
+    """
+    return (info.beat, 0 if info.note.type == 2 else 1)
+
+
 class NoteImageLoader:
     """Note 贴图加载器。
 
@@ -148,10 +157,12 @@ def place_notes_on_axes(
 ) -> None:
     """在 Axes 上放置所有普通 Note 贴图（Tap/Flick/Drag；Hold Head 由 hold_renderer 处理）。
 
-    Z 轴顺序: 按 startTime 从早到晚放置，早的在下层（低 zorder），晚的在上层。
+    Z 轴顺序: 按 startTime 从早到晚放置（同刻 Hold 排前），早的在下层（低 zorder），
+    晚的在上层。zorder 枚举与 renderer.zorder_map 使用同一排序键（note_zorder_key），
+    保证 Hold Head/End 与普通 Note 的层级一致。
     对齐方式: 贴图中心对齐到像素坐标。
     """
-    sorted_notes = sorted(notes_info, key=lambda n: n.beat)
+    sorted_notes = sorted(notes_info, key=note_zorder_key)
     for z_idx, info in enumerate(sorted_notes):
         if info.note.type == 2:
             continue  # Hold 由 hold_renderer 渲染 Head/Body/End
