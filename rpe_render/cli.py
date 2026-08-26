@@ -144,9 +144,22 @@ def main(argv: list[str] | None = None) -> int:
 
     config = parse_args(argv_list)
     from .renderer import render
+    from .service import render_source
 
     try:
-        render(config)
+        suffix = Path(config.chart_path).suffix.lower()
+        if suffix in {".pez", ".zip"}:
+            image = render_source(
+                config.chart_path,
+                background_path=config.background_path,
+                notes_dir=config.notes_dir,
+                dpi=config.dpi,
+                preview_bg_alpha=config.preview_bg_alpha,
+                track_bg_alpha=config.track_bg_alpha,
+            )
+            Path(config.output_path).write_bytes(image)
+        else:
+            render(config)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

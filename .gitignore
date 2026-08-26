@@ -8,3 +8,6 @@ tests/__pycache__/
 
 # 用户自定义配置
 /render_config.json
+
+# Web UI构建产物
+web/frontend/node_modules/

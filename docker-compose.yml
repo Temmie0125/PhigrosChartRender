@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      RPE_LOCAL_MODE: "true"
+      RPE_CORS_ORIGINS: "http://localhost:8080"
+  web:
+    build: ./web/frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api

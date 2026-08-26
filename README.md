@@ -105,6 +105,54 @@ constants.load_config("my_settings.json")  # 覆盖默认常量
 from rpe_render.renderer import RenderConfig, render
 ```
 
+## Web API 与前端
+
+### 启动 API
+
+```bash
+uvicorn rpe_render.api:app --host 127.0.0.1 --port 8000
+```
+
+API 使用内存任务队列和本地临时目录。任务结果默认保留 30 分钟，服务重启时自动删除旧任务。
+
+可配置环境变量：
+
+| 变量 | 默认值 | 说明 |
+|---|---:|---|
+| `RPE_RENDER_WORKERS` | `1` | 并发渲染 worker 数 |
+| `RPE_MAX_QUEUE_SIZE` | `32` | 最大排队/运行任务数 |
+| `RPE_MAX_UPLOAD_BYTES` | `268435456` | 上传文件上限 |
+| `RPE_RESULT_TTL_SECONDS` | `1800` | 结果保留时间 |
+| `RPE_RATE_LIMIT_PER_MINUTE` | `60` | 单 IP 每分钟创建任务数；设为 `0` 关闭 |
+| `RPE_LOCAL_MODE` | `false` | `true` 时关闭 IP 频率限制 |
+| `RPE_CORS_ORIGINS` | `localhost:5173` | 允许的前端来源，逗号分隔 |
+
+### 谱面包规则
+
+- 支持 `.pez`、`.zip` 和 `.json`。
+- 根目录只有一个 JSON 时直接使用；多个 JSON 时必须由 `info.txt` 的 `Chart:` 声明。
+- 曲绘优先读取 JSON 的 `META.background`，其次读取 `info.txt` 的 `Picture:`。
+- 声明的曲绘不存在或不是 PNG/JPG/JPEG 时返回“未找到曲绘”。
+- 声明路径区分大小写，允许空格，禁止系统保留字符和目录穿越。
+
+### 前端
+
+```bash
+cd web/frontend
+npm install
+npm run dev
+```
+
+设置 `VITE_API_BASE_URL` 指向 API 服务即可将前端部署到任意静态托管平台（包括 Vercel）。
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+前端地址为 `http://localhost:8080`，API 地址为 `http://localhost:8000`。
+
 ## 项目结构
 
 ```
