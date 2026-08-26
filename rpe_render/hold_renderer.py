@@ -45,8 +45,8 @@ class HoldRenderInfo:
     """
 
     note_info: NoteRenderInfo
-    head_y: float  # Head 贴图中心 Y（本栏内坐标）
-    end_y: float  # End 贴图中心 Y（本栏内坐标）
+    head_y: float  # Head 贴图中心 Y（顶部接合 startTime）
+    end_y: float  # End 贴图中心 Y（底部接合 endTime）
     body_top_y: float  # Body 拉伸区域的顶部 Y
     body_bottom_y: float  # Body 拉伸区域的底部 Y
     body_height: float  # Body 需要拉伸的高度（px）
@@ -133,6 +133,8 @@ def prepare_hold_render_info(
     sample_density: int = HOLD_TRAJECTORY_SAMPLES_PER_BEAT,
     head_img_height: float = _DEFAULT_IMG_HEIGHT,
     end_img_height: float = _DEFAULT_IMG_HEIGHT,
+    head_img_height_hl: float | None = None,
+    end_img_height_hl: float | None = None,
 ) -> list[HoldRenderInfo]:
     """为所有 Hold 音符准备渲染信息（含跨栏拆分）。
 
@@ -151,6 +153,8 @@ def prepare_hold_render_info(
         sample_density: 每拍采样点数
         head_img_height: Head 贴图缩放后的实际高度（px）
         end_img_height: End 贴图缩放后的实际高度（px）
+        head_img_height_hl: HL Head 贴图高度；未提供时沿用 head_img_height
+        end_img_height_hl: HL End 贴图高度；未提供时沿用 end_img_height
 
     Returns:
         HoldRenderInfo 列表（跨栏 Hold 会产生多个条目）
@@ -159,6 +163,18 @@ def prepare_hold_render_info(
     column_top = float(COLUMN_BEATS * BEAT_HEIGHT_PX)
 
     for info in hold_notes:
+        # HL 贴图可能带有额外发光延伸，几何计算必须使用该音符实际采用
+        # 的贴图高度，否则多押 Hold 的头尾会与 Body 产生错位。
+        current_head_height = (
+            head_img_height_hl
+            if info.is_multitap and head_img_height_hl is not None
+            else head_img_height
+        )
+        current_end_height = (
+            end_img_height_hl
+            if info.is_multitap and end_img_height_hl is not None
+            else end_img_height
+        )
         line = info.judge_line
         if line is None:
             line = judge_lines.get(info.judge_line_name)
@@ -174,6 +190,10 @@ def prepare_hold_render_info(
 
             y_head_seg = (seg_start - col_base) * BEAT_HEIGHT_PX
             y_end_seg = (seg_end - col_base) * BEAT_HEIGHT_PX
+
+            # Body 的端点对齐 start/end 拍点；Head/End 贴图向端点外侧接合。
+            head_y = y_head_seg - current_head_height / 2
+            end_y = y_end_seg + current_end_height / 2
 
             has_head = col == col_s
             has_end = col == col_e
@@ -198,11 +218,10 @@ def prepare_hold_render_info(
                     col_offset,
                 )
 
-            # Body 边界：底部从 Head 图底开始（或栏底），顶部到 End 图顶（或栏顶）。
-            # 头尾各向贴图内侧延伸 HOLD_BODY_OVERLAP_PX，使 Body 伸入 Head/End
-            # 贴图下方重叠拼接，消除精确对齐导致的接缝（与游戏内拼接方式一致）。
-            body_bottom = y_head_seg + head_img_height / 2 - HOLD_BODY_OVERLAP_PX if has_head else 0.0
-            body_top = y_end_seg - end_img_height / 2 + HOLD_BODY_OVERLAP_PX if has_end else column_top
+            # Body 端点直接对齐 start/end 拍点；头尾各向贴图内侧延伸少量
+            # HOLD_BODY_OVERLAP_PX，消除缩放后的抗锯齿接缝。
+            body_bottom = y_head_seg - HOLD_BODY_OVERLAP_PX if has_head else 0.0
+            body_top = y_end_seg + HOLD_BODY_OVERLAP_PX if has_end else column_top
             body_height = body_top - body_bottom
 
             trajectory = sample_hold_trajectory(
@@ -221,8 +240,8 @@ def prepare_hold_render_info(
             infos.append(
                 HoldRenderInfo(
                     note_info=info,
-                    head_y=y_head_seg,
-                    end_y=y_end_seg,
+                    head_y=head_y,
+                    end_y=end_y,
                     body_top_y=body_top,
                     body_bottom_y=body_bottom,
                     body_height=body_height,

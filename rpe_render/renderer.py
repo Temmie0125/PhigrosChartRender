@@ -209,7 +209,9 @@ def render(config: RenderConfig) -> None:
 
     # Hold Head/End 贴图实际高度（供 Body 无缝衔接计算）
     head_img = image_loader.get_note_image(2, is_hl=False)
+    head_img_hl = image_loader.get_note_image(2, is_hl=True)
     end_img = image_loader.get_hold_end_image(is_hl=False)
+    end_img_hl = image_loader.get_hold_end_image(is_hl=True)
 
     # ===== Phase 4: 画布创建 + 渲染 =====
     fig, ax, ax_info = _create_figure(columns, config.dpi)
@@ -271,6 +273,8 @@ def render(config: RenderConfig) -> None:
         columns,
         head_img_height=float(head_img.shape[0]),
         end_img_height=float(end_img.shape[0]),
+        head_img_height_hl=float(head_img_hl.shape[0]),
+        end_img_height_hl=float(end_img_hl.shape[0]),
     )
     for hi in hold_infos:
         render_hold_body(ax, hi, image_loader)
