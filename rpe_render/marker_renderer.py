@@ -40,7 +40,7 @@ def compute_interval_markers(
     """计算时值间隔标记。
 
     规则（D10）：
-    - 筛选 type IN (Tap=1, Hold=2) 的 Note，跨类型混合后按 startTime 排序
+    - 筛选 type IN (Tap=1, Hold=2) 的 Note，跨类型混合后按主谱面 beat 排序
     - 仅标记 0 < 间隔 <= MAX_INTERVAL_MARK_BEAT（1/4 拍，16 分音符）的位置；
       间隔大于 1/4 拍（如八分音符 1/2 拍）不标记
     - 标记文字为 N 分音符刻度：label = round(4 / interval)，
@@ -102,10 +102,10 @@ def compute_overlap_groups(
     notes: list[NoteRenderInfo],
     threshold_x: float = NOTE_OVERLAP_THRESHOLD_X,
 ) -> list[list[NoteRenderInfo]]:
-    """按开始时间（startTime）聚类重合的 Note 组。
+    """按映射到主谱面的实际开始时间聚类重合的 Note 组。
 
     规则（仅考虑开始时间处的重叠）：
-    - 同一开始时间（beat 相同）的 Note 才可能重合；不同开始时间的
+    - 同一实际开始时间（映射后的 beat 相同）的 Note 才可能重合；不同开始时间的
       Note 即使渲染位置接近也不成组
     - Hold 仅以头部（startTime）参与判定，持续期间覆盖的其他 Note 不计入
     - 组内进一步按谱面原始 X 距离聚类：与组内任一成员的 |true_x| 距离

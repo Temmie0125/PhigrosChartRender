@@ -187,12 +187,13 @@ rpe_render/
 
 | 决策 | 方案 |
 |---|---|
-| 多押判定 | startTime 三元组 `[a,b,c]` 分量完全相同才构成多押（整数精确比较） |
+| 多押判定 | 映射到主谱面后的 `displayBeat` 相同才构成实际多押；浮点映射使用稳定舍入 |
 | Hold Body | 始终竖直矩形拉伸；段内 Head/End 与 Body 同 X 对齐；跨栏分段各用段内 X（尾段/中段取本段起始时刻判定线 X 映射到本栏）；Body 向两端延伸 `HOLD_BODY_OVERLAP_PX`（默认 1px）重叠拼接，消除接缝；轨迹曲线仅当持续期内存在实际位移（像素 X 范围 ≥ `HOLD_TRAJECTORY_MIN_DISPLACEMENT_PX`，默认 1px）时渲染 |
 | 时值间隔标记 | 仅 Tap+Hold 跨类型混合排序，间隔 ≤ 1/4 拍（16 分音符）标记 N 分音符刻度（label = 4/间隔拍数） |
-| 位置重合标注 | 仅同一开始时间（startTime）的 Note 参与判定；组内按谱面原始 X 距离 ≤ `NOTE_OVERLAP_THRESHOLD_X`（默认 75）聚类，在组最右 Note 旁标注 "×n"；Hold 只以头部计入 |
-| 判定线 X | 全部 4 层 moveXEvents 同时刻值直接求和 |
-| 忽略字段 | `above`/`yOffset`/`size`/`speed`/旋转/extended 事件不参与预览 |
+| 位置重合标注 | 仅同一主谱面实际开始时间的 Note 参与判定；组内按真实 X 距离 ≤ `NOTE_OVERLAP_THRESHOLD_X`（默认 75）聚类，在组最右 Note 旁标注 "×n"；Hold 只以头部计入 |
+| 判定线坐标 | 全部 4 层 `moveXEvents`/`moveYEvents`/`rotateEvents` 叠加；父线递归变换，`rotateWithFather` 控制角度继承 |
+| BPM 因数 | `displayBeat = localBeat × bpmfactor`，Note、Hold、轨迹、标记和重合判断统一使用映射后的主谱面时间 |
+| 忽略字段 | `above`/`yOffset`/`size`/`speed`/判定线视觉属性/extended 事件不参与预览 |
 | isFake 音符 | 过滤不渲染 |
 
 ## 测试
@@ -206,5 +207,4 @@ python -m pytest tests/ -v
 
 ## RPE支持说明
 
-理论上支持现有的几乎所有RPE特性（包括分层事件，第五层事件自动忽略，也不考虑缩放等特殊事件）（配置渲染只需要考虑Note的实际落点）。
-父子线功能尚未进行适配，但应该（？）不会影响使用。如有需要可以提issue。
+理论上支持现有的几乎所有 RPE 特性（包括分层事件、递归父子线和 BPM 因数；第五层事件自动忽略，也不考虑缩放等特殊视觉事件）。配置渲染以 Note 的实际落点和主谱面时间为准。

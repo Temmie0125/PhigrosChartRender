@@ -36,7 +36,7 @@ from .constants import (
     SIDE_MARKER_PADDING_PX,
     TRACK_BG_ALPHA,
 )
-from .easing.event_evaluator import judge_line_rotate_at, judge_line_x_at
+from .easing.event_evaluator import judge_line_pose_at
 from .grid_renderer import render_grid
 from .hold_renderer import (
     prepare_hold_render_info,
@@ -49,7 +49,7 @@ from .marker_renderer import render_markers, render_overlap_markers
 from .models import ColumnInfo, NoteRenderInfo
 from .note_renderer import (
     NoteImageLoader,
-    detect_multitap_groups,
+    detect_multitap_groups_at_beats,
     note_zorder_key,
     place_notes_on_axes,
 )
@@ -58,6 +58,7 @@ from .timeline import (
     compute_canvas_size,
     compute_columns,
     compute_max_beat,
+    map_line_beat,
     merge_all_notes,
     x_to_pixel,
 )
@@ -157,23 +158,21 @@ def render(config: RenderConfig) -> None:
     note_counts = compute_note_stats(all_notes)
     duration_sec = compute_duration_seconds(chart)
 
-    multitap_set = detect_multitap_groups(all_notes)
-
     image_loader = NoteImageLoader(config.notes_dir)
 
     # ===== Phase 3a: Note 渲染信息准备（角度修正 + 栏索引，纯 beat 数学）=====
     # 栏数只由 max_beat 决定（受影响栏只影响像素几何，不影响栏数）
     num_columns = max(1, int(ceil(max_beat / COLUMN_BEATS)))
     notes_info: list[NoteRenderInfo] = []
-    flat_index = 0
-    for line in chart.judge_line_list:
+    for line_index, line in enumerate(chart.judge_line_list):
         for note in line.notes:
-            t_beat = note.start_time_beat
-            angle = judge_line_rotate_at(line, t_beat)
-            # ★ 旋转修正: true_x = 判定线 X + positionX·cos(角度)
-            true_x = judge_line_x_at(line, t_beat) + note.position_x * cos(
-                radians(angle)
-            )
+            local_beat = note.start_time_beat
+            local_end_beat = note.end_time_beat
+            t_beat = map_line_beat(line, local_beat)
+            end_beat = map_line_beat(line, local_end_beat)
+            pose = judge_line_pose_at(chart, line_index, local_beat)
+            # 判定线上的 Note 沿判定线 X 轴落点；世界姿态负责父线变换。
+            true_x = pose.x + note.position_x * cos(radians(pose.angle))
             col = min(int(t_beat // COLUMN_BEATS), num_columns - 1)
 
             notes_info.append(
@@ -181,18 +180,26 @@ def render(config: RenderConfig) -> None:
                     note=note,
                     true_x=true_x,
                     beat=t_beat,
-                    end_beat=note.end_time_beat,
-                    is_multitap=(flat_index in multitap_set),
+                    end_beat=end_beat,
+                    is_multitap=False,
                     judge_line_name=line.name,
                     column=col,
                     x_pixel=0.0,
                     y_pixel=0.0,
                     y_pixel_end=0.0,
                     judge_line=line,
-                    line_angle=angle,
+                    line_angle=pose.angle,
+                    local_beat=local_beat,
+                    local_end_beat=local_end_beat,
+                    line_index=line_index,
+                    chart=chart,
                 )
             )
-            flat_index += 1
+    # BPM 因数会改变不同判定线 Note 的实际出现时刻；多押应按映射后的
+    # 主谱面拍数判断，而不是只比较各自原始 TimeT。
+    multitap_set = detect_multitap_groups_at_beats(notes_info)
+    for index, info in enumerate(notes_info):
+        info.is_multitap = index in multitap_set
 
     # 受影响段检测 → 受影响栏集合 → 各栏小区域宽度（真实间距占用）→ 分栏
     # （受影响栏右侧额外间距按区域宽度动态放大）

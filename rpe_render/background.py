@@ -28,6 +28,11 @@ logger = logging.getLogger("rpe_render")
 
 BACKGROUND_ZORDER = -1
 
+# Matplotlib 在绘制单张超大背景图时，会为整张图分配额外的 RGBA/NaN
+# 临时数组。长谱面画布很容易达到上亿像素，改为小块贴图可将峰值内存
+# 限制在单个 tile 大小，同时保持最终输出尺寸不变。
+BACKGROUND_TILE_SIZE_PX = 1024
+
 # 覆盖层 zorder：位于曲绘背景（-1）之上、网格线（0）之下
 PREVIEW_BG_ZORDER = -0.5
 
@@ -118,12 +123,13 @@ def apply_background_to_axes(
         pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
     bg = np.array(pil_img)
 
-    ax.imshow(
+    _imshow_tiled(
+        ax,
         bg,
-        extent=[x_min, x_min + canvas_width_px, 0, canvas_height_px],
-        aspect="auto",
-        zorder=BACKGROUND_ZORDER,
-        interpolation="bilinear",
+        x_min=x_min,
+        x_max=x_min + canvas_width_px,
+        y_min=0.0,
+        y_max=canvas_height_px,
     )
 
 
@@ -165,21 +171,63 @@ def apply_background_to_canvas(
         pil_img = ImageEnhance.Brightness(pil_img).enhance(brightness)
     arr = np.array(pil_img)
 
-    # 主区: 画布上部 main_h 行；信息栏: 画布底部 info_h 行
-    ax_main.imshow(
+    # 主区: 画布上部 main_h 行；信息栏: 画布底部 info_h 行。
+    # 两个区域分别分块，但仍来自同一张连续裁剪后的 arr。
+    _imshow_tiled(
+        ax_main,
         arr[:main_h],
-        extent=[x_min, x_min + canvas_width_px, 0, canvas_height_px],
-        aspect="auto",
-        zorder=BACKGROUND_ZORDER,
-        interpolation="bilinear",
+        x_min=x_min,
+        x_max=x_min + canvas_width_px,
+        y_min=0.0,
+        y_max=canvas_height_px,
     )
-    ax_info.imshow(
+    _imshow_tiled(
+        ax_info,
         arr[main_h:],
-        extent=[x_min, x_min + canvas_width_px, 0, info_height_px],
-        aspect="auto",
-        zorder=BACKGROUND_ZORDER,
-        interpolation="bilinear",
+        x_min=x_min,
+        x_max=x_min + canvas_width_px,
+        y_min=0.0,
+        y_max=info_height_px,
     )
+
+
+def _imshow_tiled(
+    ax: Axes,
+    image: np.ndarray,
+    *,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    tile_size: int = BACKGROUND_TILE_SIZE_PX,
+) -> None:
+    """将 RGB 图像拆成小块贴到 Axes，避免超大单图的临时内存峰值。
+
+    ``imshow`` 默认 ``origin='upper'``，因此图像数组的顶部行对应数据坐标
+    的 y_max；每个 tile 的 y 范围按此规则反向计算。
+    """
+    height, width = image.shape[:2]
+    if height <= 0 or width <= 0:
+        return
+    tile_size = max(1, int(tile_size))
+    x_span = x_max - x_min
+    y_span = y_max - y_min
+
+    for top in range(0, height, tile_size):
+        bottom = min(top + tile_size, height)
+        tile_y_top = y_max - (top / height) * y_span
+        tile_y_bottom = y_max - (bottom / height) * y_span
+        for left in range(0, width, tile_size):
+            right = min(left + tile_size, width)
+            tile_x_left = x_min + (left / width) * x_span
+            tile_x_right = x_min + (right / width) * x_span
+            ax.imshow(
+                image[top:bottom, left:right],
+                extent=[tile_x_left, tile_x_right, tile_y_bottom, tile_y_top],
+                aspect="auto",
+                zorder=BACKGROUND_ZORDER,
+                interpolation="bilinear",
+            )
 
 
 def apply_preview_overlay(

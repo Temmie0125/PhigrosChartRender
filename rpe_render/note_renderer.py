@@ -150,6 +150,20 @@ def detect_multitap_groups(notes: list[NoteData]) -> set[int]:
     return multitap
 
 
+def detect_multitap_groups_at_beats(notes_info: list[NoteRenderInfo]) -> set[int]:
+    """按映射后的主谱面时间判断实际同时出现的 Note。"""
+    groups: dict[float, list[int]] = {}
+    for index, info in enumerate(notes_info):
+        # 映射只涉及简单倍乘；适度舍入避免分数拍浮点误差阻断多押。
+        groups.setdefault(round(info.beat, 9), []).append(index)
+
+    multitap: set[int] = set()
+    for indices in groups.values():
+        if len(indices) >= 2:
+            multitap.update(indices)
+    return multitap
+
+
 def place_notes_on_axes(
     ax: Axes,
     notes_info: list[NoteRenderInfo],

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from math import cos, radians, sin
 from typing import TYPE_CHECKING, Optional
 
-from ..models import EventData, JudgeLineData
+from ..models import ChartData, EventData, JudgeLineData
 from ..time_utils import timet_to_beats
 from .bezier import BezierEasing
 from .functions import EASING_TYPE_TO_NAME, get_easing_by_type
@@ -162,6 +164,11 @@ def judge_line_x_at(line: JudgeLineData, t_beat: float) -> float:
     return _judge_line_attr_at(line, t_beat, "move_x_events")
 
 
+def judge_line_y_at(line: JudgeLineData, t_beat: float) -> float:
+    """计算判定线在时刻 t_beat 的局部 Y 坐标。"""
+    return _judge_line_attr_at(line, t_beat, "move_y_events")
+
+
 def judge_line_rotate_at(line: JudgeLineData, t_beat: float) -> float:
     """计算判定线在时刻 t_beat 的角度（4 层 rotateEvents 叠加）。
 
@@ -171,11 +178,79 @@ def judge_line_rotate_at(line: JudgeLineData, t_beat: float) -> float:
     return _judge_line_attr_at(line, t_beat, "rotate_events")
 
 
+@dataclass(frozen=True)
+class JudgeLinePose:
+    """判定线在统一游戏坐标系中的位置和方向。"""
+
+    x: float
+    y: float
+    angle: float
+
+
+def judge_line_pose_at(
+    chart: ChartData,
+    line_index: int,
+    local_beat: float,
+    _stack: tuple[int, ...] = (),
+) -> JudgeLinePose:
+    """递归计算判定线在世界坐标系中的姿态。
+
+    子线的局部 moveX/moveY 位于父线坐标系中；父线旋转始终影响该坐标
+    变换，而 ``rotate_with_father`` 仅控制父线角度是否叠加到子线自身角度。
+    ``_stack`` 仅用于防御性检测，正常输入已在 chart_parser 校验过。
+    """
+    if line_index < 0 or line_index >= len(chart.judge_line_list):
+        raise ValueError(f"invalid judge line index: {line_index}")
+    if line_index in _stack:
+        raise ValueError(f"judge line father cycle detected at index {line_index}")
+
+    line = chart.judge_line_list[line_index]
+    local_x = judge_line_x_at(line, local_beat)
+    local_y = judge_line_y_at(line, local_beat)
+    local_angle = judge_line_rotate_at(line, local_beat)
+
+    if line.father == -1:
+        return JudgeLinePose(local_x, local_y, local_angle)
+
+    # 父子线可能拥有不同 bpmfactor；父线姿态必须取与当前子线时刻相同
+    # 的主谱面实际时间，而不能直接复用子线的本地拍数。
+    display_beat = local_beat * line.bpm_factor
+    parent_line = chart.judge_line_list[line.father]
+    parent_local_beat = display_beat / parent_line.bpm_factor
+    parent = judge_line_pose_at(
+        chart, line.father, parent_local_beat, _stack + (line_index,)
+    )
+    theta = radians(parent.angle)
+    world_x = parent.x + local_x * cos(theta) - local_y * sin(theta)
+    world_y = parent.y + local_x * sin(theta) + local_y * cos(theta)
+    world_angle = local_angle + (parent.angle if line.rotate_with_father else 0.0)
+    return JudgeLinePose(world_x, world_y, world_angle)
+
+
+def judge_line_world_x_at(
+    chart: ChartData, line_index: int, local_beat: float
+) -> float:
+    """计算判定线世界坐标 X。"""
+    return judge_line_pose_at(chart, line_index, local_beat).x
+
+
+def judge_line_world_angle_at(
+    chart: ChartData, line_index: int, local_beat: float
+) -> float:
+    """计算判定线世界坐标角度。"""
+    return judge_line_pose_at(chart, line_index, local_beat).angle
+
+
 __all__ = [
     "EASING_TYPE_TO_NAME",
     "compute_eased_progress",
     "evaluate_event_value",
     "find_enclosing_event",
+    "JudgeLinePose",
+    "judge_line_pose_at",
+    "judge_line_world_angle_at",
+    "judge_line_world_x_at",
     "judge_line_rotate_at",
     "judge_line_x_at",
+    "judge_line_y_at",
 ]

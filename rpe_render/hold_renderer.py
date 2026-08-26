@@ -22,7 +22,7 @@ from .constants import (
     HOLD_TRAJECTORY_WIDTH,
     NOTE_ICON_WIDTH,
 )
-from .easing.event_evaluator import judge_line_rotate_at, judge_line_x_at
+from .easing.event_evaluator import judge_line_pose_at
 from .models import ColumnInfo, JudgeLineData, NoteData, NoteRenderInfo
 from .timeline import x_to_pixel
 
@@ -86,6 +86,12 @@ def sample_hold_trajectory(
     end_beat: float,
     samples_per_beat: int,
     column_offset_px: float,
+    *,
+    chart: object | None = None,
+    line_index: int = -1,
+    display_start_beat: float | None = None,
+    display_end_beat: float | None = None,
+    display_factor: float = 1.0,
 ) -> list[tuple[float, float]]:
     """对 Hold 持续期间的判定线 X + note.positionX 进行采样。
 
@@ -107,11 +113,23 @@ def sample_hold_trajectory(
 
     num_samples = max(2, int(duration * samples_per_beat))
     points: list[tuple[float, float]] = []
-    col_base = _column_floor(start_beat)
+    if display_start_beat is None:
+        display_start_beat = start_beat * display_factor
+    if display_end_beat is None:
+        display_end_beat = end_beat * display_factor
+    display_duration = display_end_beat - display_start_beat
+    col_base = _column_floor(display_start_beat)
 
     for i in range(num_samples + 1):
         t = start_beat + (duration * i / num_samples)
-        if line is not None:
+        if line is not None and chart is not None and line_index >= 0:
+            pose = judge_line_pose_at(chart, line_index, t)
+            jl_x = pose.x
+            angle = pose.angle
+        elif line is not None:
+            # 兼容旧的无 ChartData 调用：按独立判定线处理。
+            from .easing.event_evaluator import judge_line_x_at, judge_line_rotate_at
+
             jl_x = judge_line_x_at(line, t)
             angle = judge_line_rotate_at(line, t)
         else:
@@ -119,7 +137,8 @@ def sample_hold_trajectory(
             angle = 0.0
         # 旋转修正: true_x = 判定线 X + positionX·cos(角度)
         true_x = jl_x + note.position_x * cos(radians(angle))
-        y_px = (t - col_base) * BEAT_HEIGHT_PX
+        display_t = display_start_beat + display_duration * i / num_samples
+        y_px = (display_t - col_base) * BEAT_HEIGHT_PX
         x_px = x_to_pixel(true_x, column_offset_px)
         points.append((x_px, y_px))
 
@@ -180,6 +199,7 @@ def prepare_hold_render_info(
             line = judge_lines.get(info.judge_line_name)
 
         s, e = info.beat, info.end_beat
+        factor = float(getattr(line, "bpm_factor", 1.0)) if line is not None else 1.0
         col_s = int(s // COLUMN_BEATS)
         col_e = int(e // COLUMN_BEATS)
 
@@ -208,8 +228,18 @@ def prepare_hold_render_info(
                 seg_x_pixel = info.x_pixel
             else:
                 if line is not None:
-                    seg_line_x = judge_line_x_at(line, seg_start)
-                    seg_angle = judge_line_rotate_at(line, seg_start)
+                    local_seg_start = seg_start / factor
+                    if info.chart is not None and info.line_index >= 0:
+                        pose = judge_line_pose_at(
+                            info.chart, info.line_index, local_seg_start
+                        )
+                        seg_line_x = pose.x
+                        seg_angle = pose.angle
+                    else:
+                        from .easing.event_evaluator import judge_line_x_at, judge_line_rotate_at
+
+                        seg_line_x = judge_line_x_at(line, local_seg_start)
+                        seg_angle = judge_line_rotate_at(line, local_seg_start)
                 else:
                     seg_line_x = 0.0
                     seg_angle = 0.0
@@ -227,10 +257,15 @@ def prepare_hold_render_info(
             trajectory = sample_hold_trajectory(
                 line=line,
                 note=info.note,
-                start_beat=seg_start,
-                end_beat=seg_end,
+                start_beat=seg_start / factor,
+                end_beat=seg_end / factor,
                 samples_per_beat=sample_density,
                 column_offset_px=col_offset,
+                chart=info.chart,
+                line_index=info.line_index,
+                display_start_beat=seg_start,
+                display_end_beat=seg_end,
+                display_factor=factor,
             )
             # 设计文档：仅当 Hold 持续期间存在实际位移时才渲染运动轨迹。
             # 无位移时轨迹与竖直 Body 重合，置 None 跳过渲染。

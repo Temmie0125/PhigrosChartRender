@@ -38,7 +38,7 @@ from .constants import (
     NOTE_ICON_WIDTH,
     TRACK_BG_ALPHA,
 )
-from .easing.event_evaluator import judge_line_rotate_at, judge_line_x_at
+from .easing.event_evaluator import judge_line_pose_at
 from .models import ColumnInfo, NoteRenderInfo
 from .timeline import x_to_pixel
 
@@ -169,13 +169,22 @@ def _note_x_in_column(
     """
     if note_info.note.type == 2 and col_index != note_info.column:
         line = note_info.judge_line
-        t = max(note_info.beat, col_index * COLUMN_BEATS)
-        if line is not None:
-            jl_x = judge_line_x_at(line, t)
-            angle = judge_line_rotate_at(line, t)
+        display_t = max(note_info.beat, col_index * COLUMN_BEATS)
+        factor = float(getattr(line, "bpm_factor", 1.0)) if line is not None else 1.0
+        local_t = display_t / factor
+        if line is not None and note_info.chart is not None and note_info.line_index >= 0:
+            pose = judge_line_pose_at(note_info.chart, note_info.line_index, local_t)
+            jl_x = pose.x
+            angle = pose.angle
         else:
-            jl_x = 0.0
-            angle = 0.0
+            if line is not None:
+                from .easing.event_evaluator import judge_line_x_at, judge_line_rotate_at
+
+                jl_x = judge_line_x_at(line, local_t)
+                angle = judge_line_rotate_at(line, local_t)
+            else:
+                jl_x = 0.0
+                angle = 0.0
         true_x = jl_x + note_info.note.position_x * cos(radians(angle))
         return x_to_pixel(true_x, columns[col_index].pixel_left)
     return note_info.x_pixel

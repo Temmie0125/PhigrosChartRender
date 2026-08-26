@@ -149,13 +149,22 @@ def compute_max_beat(chart: ChartData) -> float:
     max_beat = 0.0
     for line in chart.judge_line_list:
         for note in line.notes:
-            if note.end_time_beat > max_beat:
-                max_beat = note.end_time_beat
+            if map_line_beat(line, note.end_time_beat) > max_beat:
+                max_beat = map_line_beat(line, note.end_time_beat)
 
     if max_beat <= 0.0 and chart.bpm_list:
         max_beat = timet_to_beats_value(chart.bpm_list[-1].start_time)
 
     return max_beat
+
+
+def map_line_beat(line: JudgeLineData, local_beat: float) -> float:
+    """将判定线本地拍数映射到主谱面时间轴。
+
+    RPE 的 bpmfactor 表示该线使用全局 BPM 的 1/f，因此在当前拍数预览
+    轴上，其实际时间长度按 f 倍展开。
+    """
+    return float(local_beat) * float(line.bpm_factor)
 
 
 def timet_to_beats_value(tt: list[int]) -> float:

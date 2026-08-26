@@ -65,6 +65,7 @@ def parse_chart(file_path: str | Path) -> ChartData:
     bpm_list = parse_bpm_list(raw_bpm_list)
     judge_line_group = [str(g) for g in raw.get("judgeLineGroup", [])]
     judge_line_list = [parse_judge_line(item) for item in raw["judgeLineList"]]
+    _validate_parent_links(judge_line_list)
 
     logger.info(
         "Parsed chart: %d judge lines, %d BPM events",
@@ -191,6 +192,10 @@ def parse_judge_line(raw: dict) -> JudgeLineData:
     parsed = [parse_note(n) for n in raw.get("notes", [])]
     notes = [n for n in parsed if n is not None]
 
+    bpm_factor = float(raw.get("bpmfactor", 1.0))
+    if bpm_factor <= 0:
+        raise ValueError(f"bpmfactor must be positive, got {bpm_factor}")
+
     return JudgeLineData(
         name=str(raw.get("Name", "")),
         group=int(raw.get("Group", 0)),
@@ -198,10 +203,37 @@ def parse_judge_line(raw: dict) -> JudgeLineData:
         father=int(raw.get("father", -1)),
         z_order=int(raw.get("zOrder", 0)),
         is_cover=bool(raw.get("isCover", 0)),
-        bpm_factor=float(raw.get("bpmfactor", 1.0)),
+        bpm_factor=bpm_factor,
         notes=notes,
         event_layers=layers[:4],
+        rotate_with_father=bool(raw.get("rotateWithFather", False)),
     )
+
+
+def _validate_parent_links(lines: list[JudgeLineData]) -> None:
+    """校验父线索引并拒绝任意深度的循环嵌套。"""
+    count = len(lines)
+    for index, line in enumerate(lines):
+        if line.father != -1 and not 0 <= line.father < count:
+            raise ValueError(
+                f"judgeLine[{index}] has invalid father index {line.father}"
+            )
+
+    state = [0] * count  # 0=未访问，1=访问中，2=已完成
+
+    def visit(index: int) -> None:
+        if state[index] == 1:
+            raise ValueError(f"judge line father cycle detected at index {index}")
+        if state[index] == 2:
+            return
+        state[index] = 1
+        father = lines[index].father
+        if father != -1:
+            visit(father)
+        state[index] = 2
+
+    for index in range(count):
+        visit(index)
 
 
 def validate_chart(data: ChartData) -> list[str]:
@@ -237,6 +269,10 @@ def validate_chart(data: ChartData) -> list[str]:
     for line_idx, line in enumerate(data.judge_line_list):
         if len(line.event_layers) != 4:
             issues.append(f"judgeLine[{line_idx}] '{line.name}' does not have 4 event layers")
+        if line.bpm_factor <= 0:
+            issues.append(
+                f"judgeLine[{line_idx}] '{line.name}' has non-positive bpmfactor"
+            )
         for note_idx, note in enumerate(line.notes):
             if note.start_time_beat > note.end_time_beat:
                 issues.append(

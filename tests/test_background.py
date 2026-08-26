@@ -106,6 +106,22 @@ class TestCoverCrop:
 
 
 class TestApplyBackground:
+    def test_large_canvas_is_split_into_tiles(self):
+        import matplotlib.pyplot as plt
+
+        fig = plt.figure(figsize=(2, 2), dpi=100)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.set_xlim(0, 2400)
+        ax.set_ylim(0, 1800)
+        bg = np.full((32, 32, 3), 200, dtype=np.uint8)
+        apply_background_to_axes(ax, bg, canvas_width_px=2400, canvas_height_px=1800)
+
+        # 大画布不能退化成单个覆盖全画布的 AxesImage，否则 Matplotlib
+        # 绘制时会申请与整张输出同等大小的临时 RGBA 数组。
+        assert len(ax.get_images()) > 1
+        fig.canvas.draw()
+        plt.close(fig)
+
     def test_dimmed_to_half(self):
         import matplotlib.pyplot as plt
 

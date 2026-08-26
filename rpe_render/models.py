@@ -89,6 +89,8 @@ class JudgeLineData:
     bpm_factor: float
     notes: list[NoteData]
     event_layers: list[EventLayer]  # 固定 4 个层级
+    # RPE 文档规定：未指定时父线角度不继承到子线。
+    rotate_with_father: bool = False
 
 
 @dataclass
@@ -119,6 +121,18 @@ class NoteRenderInfo:
     y_pixel_end: float  # 像素 Y 坐标（endTime，仅 Hold 有效）
     judge_line: object | None = None  # 来源判定线引用（供 Hold 轨迹采样）
     line_angle: float = 0.0  # note startTime 时判定线角度（度，4 层 rotateEvents 叠加）
+    # 判定线本地拍数；beat/end_beat 是映射到统一主谱面时间轴后的拍数。
+    local_beat: float | None = None
+    local_end_beat: float | None = None
+    line_index: int = -1
+    chart: object | None = None
+
+    def __post_init__(self) -> None:
+        # 保持手工构造 NoteRenderInfo 的旧调用方式兼容。
+        if self.local_beat is None:
+            self.local_beat = self.beat
+        if self.local_end_beat is None:
+            self.local_end_beat = self.end_beat
 
 
 @dataclass
