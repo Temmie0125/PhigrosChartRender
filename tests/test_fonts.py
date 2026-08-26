@@ -22,6 +22,9 @@ def _real_font_path() -> str:
 
 
 class TestGetFont:
+    def test_reuses_properties_for_same_size(self):
+        assert fonts.get_font(8.0) is fonts.get_font(8.0)
+
     def test_default_font_path_points_to_existing_file(self, project_root):
         # 仓库默认主字体必须存在，否则所有文字静默回退
         assert Path(constants.FONT_PATH).is_file()

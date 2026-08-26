@@ -11,6 +11,8 @@ from rpe_render.note_renderer import (
     detect_multitap_groups,
     note_zorder_key,
     place_notes_on_axes,
+    composite_note_sprites,
+    place_note_sprites_on_axes,
 )
 
 
@@ -207,4 +209,42 @@ class TestPlaceNotesNotClippedAtBoundary:
 
         assert len(ax.images) == 1
         assert ax.images[0].get_clip_on() is False
+        plt.close(fig)
+
+
+class TestNoteSpriteBatching:
+    def test_large_sprite_set_is_batched_by_column(self, notes_dir):
+        import matplotlib.pyplot as plt
+        from PIL import Image
+
+        from rpe_render.timeline import compute_columns
+
+        fig = plt.figure(figsize=(4, 2), dpi=100)
+        ax = fig.add_axes([0, 0, 1, 1])
+        columns = compute_columns(128.0)
+        ax.set_xlim(-64, columns[-1].pixel_right + 64)
+        ax.set_ylim(0, 4096)
+        loader = NoteImageLoader(notes_dir)
+        notes = [make_info(1, float(i)) for i in range(65)]
+        for info in notes:
+            info.column = min(int(info.beat // 64), 1)
+            info.x_pixel = columns[info.column].pixel_left + 225
+            info.y_pixel = (info.beat % 64) * 64
+        zorders = {id(info): 10 + index for index, info in enumerate(notes)}
+
+        deferred = place_note_sprites_on_axes(
+            ax, notes, [], loader, zorders, batch_threshold=64
+        )
+
+        # zorder 10..20 保持独立，其余贴图延迟到最终 RGBA 缓冲区合成。
+        assert len(ax.images) == 11
+        assert len(deferred) == 54
+        fig.canvas.draw()
+        foreground = Image.frombuffer(
+            "RGBA", fig.canvas.get_width_height(), fig.canvas.buffer_rgba(),
+            "raw", "RGBA", 0, 1,
+        ).copy()
+        before = foreground.tobytes()
+        composite_note_sprites(foreground, ax, deferred)
+        assert foreground.tobytes() != before
         plt.close(fig)

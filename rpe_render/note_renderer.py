@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,19 @@ logger = logging.getLogger("rpe_render")
 
 # 贴图基础 zorder：按 startTime 从早到晚 10, 11, 12 ...
 NOTE_BASE_ZORDER = 10
+NOTE_BATCH_THRESHOLD = 64
+NOTE_BATCH_SPLIT_ZORDER = 20
+
+
+@dataclass(frozen=True)
+class SpritePlacement:
+    """一个已确定像素位置与层级的 Note 贴图。"""
+
+    image: np.ndarray
+    center_x: float
+    center_y: float
+    zorder: float
+    column: int
 
 
 def note_zorder_key(info: NoteRenderInfo) -> tuple[float, int]:
@@ -202,3 +216,127 @@ def place_notes_on_axes(
             resample=False,
             clip_on=False,
         )
+
+
+def place_note_sprites_on_axes(
+    ax: Axes,
+    notes_info: list[NoteRenderInfo],
+    hold_infos: list[Any],
+    image_loader: Any,
+    zorder_map: dict[int, float],
+    *,
+    batch_threshold: int = NOTE_BATCH_THRESHOLD,
+) -> list[SpritePlacement]:
+    """绘制低层级贴图，并返回可在最终 RGBA 缓冲区合批的贴图。
+
+    少量贴图仍逐个交给 Matplotlib。大量贴图中，zorder <= 20 的元素
+    必须保留为独立 artist，以维持它们与文字标记的层叠关系；其余元素
+    均位于所有非贴图 artist 之上，可在 Agg 绘制完成后直接 alpha 合成。
+    这种方式不会让 Matplotlib 对整栏透明大图执行昂贵的掩码和重采样。
+    """
+    placements: list[SpritePlacement] = []
+    for info in notes_info:
+        if info.note.type == 2:
+            continue
+        placements.append(
+            SpritePlacement(
+                image_loader.get_note_image(info.note.type, info.is_multitap),
+                info.x_pixel,
+                info.y_pixel,
+                zorder_map[id(info)],
+                info.column,
+            )
+        )
+
+    for hold in hold_infos:
+        zorder = zorder_map.get(id(hold.note_info), NOTE_BASE_ZORDER + 1)
+        if hold.has_head:
+            placements.append(
+                SpritePlacement(
+                    image_loader.get_note_image(2, hold.note_info.is_multitap),
+                    hold.x_pixel,
+                    hold.head_y,
+                    zorder,
+                    hold.column_index,
+                )
+            )
+        if hold.has_end:
+            placements.append(
+                SpritePlacement(
+                    image_loader.get_hold_end_image(hold.note_info.is_multitap),
+                    hold.x_pixel,
+                    hold.end_y,
+                    zorder,
+                    hold.column_index,
+                )
+            )
+
+    if len(placements) < batch_threshold:
+        for placement in placements:
+            _place_sprite(ax, placement)
+        return []
+
+    deferred: list[SpritePlacement] = []
+    for placement in placements:
+        if placement.zorder <= NOTE_BATCH_SPLIT_ZORDER:
+            _place_sprite(ax, placement)
+        else:
+            deferred.append(placement)
+    return deferred
+
+
+def _place_sprite(ax: Axes, placement: SpritePlacement) -> None:
+    image = placement.image
+    height, width = image.shape[:2]
+    ax.imshow(
+        image,
+        extent=[
+            placement.center_x - width / 2,
+            placement.center_x + width / 2,
+            placement.center_y - height / 2,
+            placement.center_y + height / 2,
+        ],
+        zorder=placement.zorder,
+        interpolation="nearest",
+        resample=False,
+        clip_on=False,
+    )
+
+
+def composite_note_sprites(
+    foreground: Image.Image,
+    ax: Axes,
+    placements: list[SpritePlacement],
+) -> None:
+    """按 zorder 将延迟贴图直接合成到 Agg 生成的 RGBA 图像。"""
+    if not placements:
+        return
+
+    canvas_height = foreground.height
+    pil_cache: dict[tuple[int, int, int], Image.Image] = {}
+    for placement in sorted(placements, key=lambda p: p.zorder):
+        image = placement.image
+        image_height, image_width = image.shape[:2]
+        center_x, center_y = ax.transData.transform(
+            (placement.center_x, placement.center_y)
+        )
+        left_px, bottom_px = ax.transData.transform(
+            (placement.center_x - image_width / 2, placement.center_y - image_height / 2)
+        )
+        right_px, top_px = ax.transData.transform(
+            (placement.center_x + image_width / 2, placement.center_y + image_height / 2)
+        )
+        target_width = max(1, round(abs(right_px - left_px)))
+        target_height = max(1, round(abs(top_px - bottom_px)))
+        cache_key = (id(image), target_width, target_height)
+        sprite = pil_cache.get(cache_key)
+        if sprite is None:
+            sprite = Image.fromarray(image, mode="RGBA")
+            if sprite.size != (target_width, target_height):
+                sprite = sprite.resize(
+                    (target_width, target_height), Image.Resampling.NEAREST
+                )
+            pil_cache[cache_key] = sprite
+        left = round(center_x - target_width / 2)
+        top = round(canvas_height - center_y - target_height / 2)
+        foreground.alpha_composite(sprite, (left, top))

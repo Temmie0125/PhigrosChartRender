@@ -43,7 +43,6 @@ from .grid_renderer import render_grid
 from .hold_renderer import (
     prepare_hold_render_info,
     render_hold_body,
-    render_hold_head_end,
     render_hold_trajectory,
 )
 from .info_bar import compute_duration_seconds, compute_note_stats, render_info_bar
@@ -51,9 +50,10 @@ from .marker_renderer import render_markers, render_overlap_markers
 from .models import ColumnInfo, NoteRenderInfo
 from .note_renderer import (
     NoteImageLoader,
+    composite_note_sprites,
     detect_multitap_groups_at_beats,
     note_zorder_key,
-    place_notes_on_axes,
+    place_note_sprites_on_axes,
 )
 from .timeline import (
     beat_to_pixel,
@@ -313,19 +313,13 @@ def render(config: RenderConfig) -> None:
     # 位置重合的 Note 组标注 "×n"（写在 Note 旁边）
     render_overlap_markers(ax, notes_info)
 
-    # Note 贴图（按 startTime 从早到晚分配递增 zorder，同刻 Hold 排前）
-    place_notes_on_axes(ax, notes_info, image_loader)
-
-    # zorder 映射：Hold Head/End 与普通 Note 使用同一排序键（bug #1）
+    # 普通 Note 与 Hold Head/End 共用排序和批处理路径。大谱面按栏合成为
+    # 少量 RGBA artist；小谱面保留逐图路径，避免透明整栏的固定成本。
     sorted_infos = sorted(notes_info, key=note_zorder_key)
     zorder_map = {id(info): 10 + idx for idx, info in enumerate(sorted_infos)}
-    for hi in hold_infos:
-        render_hold_head_end(
-            ax,
-            hi,
-            image_loader,
-            zorder=zorder_map.get(id(hi.note_info), 11),
-        )
+    deferred_note_sprites = place_note_sprites_on_axes(
+        ax, notes_info, hold_infos, image_loader, zorder_map
+    )
 
     # 底部信息栏（canvas_w_px 含两侧标记边距，与背景坐标一致）
     render_info_bar(
@@ -353,6 +347,7 @@ def render(config: RenderConfig) -> None:
             0,
             1,
         ).copy()
+        composite_note_sprites(foreground, ax, deferred_note_sprites)
     finally:
         plt.close(fig)
 

@@ -35,6 +35,9 @@ _font_path_seen: str = ""
 
 # 本机可用的 CJK 回退字体族缓存（fontManager.ttflist 扫描一次后保持不变）
 _available_cjk: tuple[str, ...] | None = None
+# FontProperties 可安全复用；按字体族、回退链和字号缓存，避免每个
+# Text artist 都重新触发 findfont 路径解析。
+_font_cache: dict[tuple[str | None, tuple[str, ...], float], FontProperties] = {}
 
 
 def _cjk_candidates() -> list[str]:
@@ -94,10 +97,15 @@ def get_font(size: float) -> FontProperties:
         族名列表末尾追加常见 CJK 字体族用于缺字回退。
     """
     name = _custom_font_family()
-    cjk = _cjk_candidates()
-    if name:
-        return FontProperties(family=[name, *cjk], size=size)
-    return FontProperties(family=cjk, size=size)
+    cjk = tuple(_cjk_candidates())
+    key = (name, cjk, float(size))
+    cached = _font_cache.get(key)
+    if cached is not None:
+        return cached
+    family = [name, *cjk] if name else list(cjk)
+    font = FontProperties(family=family, size=size)
+    _font_cache[key] = font
+    return font
 
 
 def configure_cjk_font() -> None:
