@@ -1,0 +1,86 @@
+{
+   "BPMList" : [
+      { "bpm" : 120.0, "startTime" : [0, 0, 1] },
+      { "bpm" : 180.0, "startTime" : [32, 0, 1] }
+   ],
+   "META" : {
+      "RPEVersion" : 170,
+      "background" : "bg.png",
+      "charter" : "tester",
+      "composer" : "composer",
+      "id" : "test001",
+      "level" : "IN 13",
+      "name" : "Minimal Test",
+      "offset" : 0,
+      "song" : "song.ogg"
+   },
+   "judgeLineGroup" : [ "Default" ],
+   "judgeLineList" : [
+      {
+         "Group" : 0,
+         "Name" : "Line1",
+         "Texture" : "line.png",
+         "bpmfactor" : 1.0,
+         "father" : -1,
+         "isCover" : 0,
+         "numOfNotes" : 3,
+         "zOrder" : 0,
+         "notes" : [
+            {
+               "above" : 1, "alpha" : 255, "isFake" : 0,
+               "startTime" : [0, 0, 1], "endTime" : [0, 0, 1],
+               "positionX" : 100.0, "size" : 1.0, "speed" : 1.0,
+               "type" : 1, "visibleTime" : 99999.0, "yOffset" : 0
+            },
+            {
+               "above" : 1, "alpha" : 255, "isFake" : 1,
+               "startTime" : [2, 0, 1], "endTime" : [2, 0, 1],
+               "positionX" : 0.0, "size" : 1.0, "speed" : 1.0,
+               "type" : 1, "visibleTime" : 99999.0, "yOffset" : 0
+            },
+            {
+               "above" : 1, "alpha" : 255, "isFake" : 0,
+               "startTime" : [4, 0, 1], "endTime" : [8, 0, 1],
+               "positionX" : -200.0, "size" : 1.0, "speed" : 1.0,
+               "type" : 2, "visibleTime" : 99999.0, "yOffset" : 0
+            }
+         ],
+         "eventLayers" : [
+            {
+               "moveXEvents" : [
+                  {
+                     "bezier" : 0,
+                     "bezierPoints" : [0.0, 0.0, 0.0, 0.0],
+                     "easingLeft" : 0.0, "easingRight" : 1.0, "easingType" : 1,
+                     "end" : 50.0, "endTime" : [16, 0, 1], "linkgroup" : 0,
+                     "start" : 0.0, "startTime" : [0, 0, 1]
+                  }
+               ],
+               "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            },
+            {
+               "moveXEvents" : [
+                  {
+                     "bezier" : 0,
+                     "bezierPoints" : [0.0, 0.0, 0.0, 0.0],
+                     "easingLeft" : 0.0, "easingRight" : 1.0, "easingType" : 1,
+                     "end" : 30.0, "endTime" : [16, 0, 1], "linkgroup" : 0,
+                     "start" : 10.0, "startTime" : [0, 0, 1]
+                  }
+               ],
+               "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            },
+            {
+               "moveXEvents" : [], "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            },
+            {
+               "moveXEvents" : [], "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            }
+         ]
+      }
+   ]
+}

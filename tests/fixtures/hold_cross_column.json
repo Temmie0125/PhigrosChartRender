@@ -1,0 +1,64 @@
+{
+   "BPMList" : [
+      { "bpm" : 128.0, "startTime" : [0, 0, 1] }
+   ],
+   "META" : {
+      "RPEVersion" : 170,
+      "background" : "",
+      "charter" : "t",
+      "composer" : "c",
+      "id" : "hold_cross",
+      "level" : "AT 16",
+      "name" : "HoldCrossColumn",
+      "offset" : 0,
+      "song" : "s.ogg"
+   },
+   "judgeLineGroup" : [ "Default" ],
+   "judgeLineList" : [
+      {
+         "Group" : 0,
+         "Name" : "L",
+         "Texture" : "",
+         "bpmfactor" : 1.0,
+         "father" : -1,
+         "isCover" : 0,
+         "numOfNotes" : 1,
+         "zOrder" : 0,
+         "notes" : [
+            {
+               "above" : 1, "alpha" : 255, "isFake" : 0,
+               "startTime" : [60, 0, 1], "endTime" : [70, 0, 1],
+               "positionX" : 0.0, "size" : 1.0, "speed" : 1.0,
+               "type" : 2, "visibleTime" : 99999.0, "yOffset" : 0
+            }
+         ],
+         "eventLayers" : [
+            {
+               "moveXEvents" : [
+                  {
+                     "bezier" : 0,
+                     "bezierPoints" : [0.0, 0.0, 0.0, 0.0],
+                     "easingLeft" : 0.0, "easingRight" : 1.0, "easingType" : 1,
+                     "end" : 200.0, "endTime" : [70, 0, 1], "linkgroup" : 0,
+                     "start" : -200.0, "startTime" : [60, 0, 1]
+                  }
+               ],
+               "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            },
+            {
+               "moveXEvents" : [], "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            },
+            {
+               "moveXEvents" : [], "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            },
+            {
+               "moveXEvents" : [], "moveYEvents" : [], "rotateEvents" : [],
+               "alphaEvents" : [], "speedEvents" : []
+            }
+         ]
+      }
+   ]
+}

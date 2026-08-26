@@ -147,6 +147,15 @@ rpe_render/
 | 忽略字段 | `above`/`yOffset`/`size`/`speed`/旋转/extended 事件不参与预览 |
 | isFake 音符 | 过滤不渲染 |
 
+## 测试
+
+```bash
+python -m pytest tests/ -v
+```
+
+测试分层：纯计算单元测试（time_utils/easing/parser/timeline/marker 等）→
+渲染层集成测试（检查 Axes 状态）→ E2E 测试（真实谱面 `resources/chart.json` 出图验证）。
+
 ## RPE支持说明
 
 理论上支持现有的几乎所有RPE特性（包括分层事件，第五层事件自动忽略，也不考虑缩放等特殊事件）（配置渲染只需要考虑Note的实际落点）。

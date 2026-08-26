@@ -1,7 +1,7 @@
 docs/
 .pytest_cache/
 __pycache__/
-tests/
+tests/__pycache__/
 
 # 渲染输出产物
 /output*.png

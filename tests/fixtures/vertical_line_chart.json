@@ -1,0 +1,160 @@
+{
+  "BPMList": [
+    { "bpm": 128.0, "startTime": [0, 0, 1] }
+  ],
+  "META": {
+    "RPEVersion": 170,
+    "background": "",
+    "charter": "t",
+    "composer": "c",
+    "id": "vertical_line_chart",
+    "level": "AT 16",
+    "name": "VerticalLineChart",
+    "offset": 0,
+    "song": "s.ogg"
+  },
+  "judgeLineGroup": [ "Default" ],
+  "judgeLineList": [
+    {
+      "Group": 0,
+      "Name": "V180",
+      "Texture": "",
+      "bpmfactor": 1.0,
+      "father": -1,
+      "isCover": 0,
+      "numOfNotes": 1,
+      "zOrder": 0,
+      "notes": [
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [4, 0, 1], "endTime": [4, 0, 1],
+          "positionX": 450.0, "size": 1.0, "speed": 1.0,
+          "type": 1, "visibleTime": 99999.0, "yOffset": 0
+        }
+      ],
+      "eventLayers": [
+        {
+          "moveXEvents": [], "moveYEvents": [],
+          "rotateEvents": [
+            {
+              "bezier": 0, "bezierPoints": [0.0, 0.0, 0.0, 0.0],
+              "easingLeft": 0.0, "easingRight": 1.0, "easingType": 1,
+              "end": -180.0, "endTime": [64, 0, 1], "linkgroup": 0,
+              "start": -180.0, "startTime": [0, 0, 1]
+            }
+          ],
+          "alphaEvents": [], "speedEvents": []
+        },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] }
+      ]
+    },
+    {
+      "Group": 0,
+      "Name": "V90",
+      "Texture": "",
+      "bpmfactor": 1.0,
+      "father": -1,
+      "isCover": 0,
+      "numOfNotes": 2,
+      "zOrder": 0,
+      "notes": [
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [8, 0, 1], "endTime": [8, 0, 1],
+          "positionX": -400.0, "size": 1.0, "speed": 1.0,
+          "type": 1, "visibleTime": 99999.0, "yOffset": 0
+        },
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [8, 0, 1], "endTime": [8, 0, 1],
+          "positionX": 400.0, "size": 1.0, "speed": 1.0,
+          "type": 3, "visibleTime": 99999.0, "yOffset": 0
+        }
+      ],
+      "eventLayers": [
+        {
+          "moveXEvents": [], "moveYEvents": [],
+          "rotateEvents": [
+            {
+              "bezier": 0, "bezierPoints": [0.0, 0.0, 0.0, 0.0],
+              "easingLeft": 0.0, "easingRight": 1.0, "easingType": 1,
+              "end": 90.0, "endTime": [64, 0, 1], "linkgroup": 0,
+              "start": 90.0, "startTime": [0, 0, 1]
+            }
+          ],
+          "alphaEvents": [], "speedEvents": []
+        },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] }
+      ]
+    },
+    {
+      "Group": 0,
+      "Name": "VNear",
+      "Texture": "",
+      "bpmfactor": 1.0,
+      "father": -1,
+      "isCover": 0,
+      "numOfNotes": 6,
+      "zOrder": 0,
+      "notes": [
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [10, 0, 1], "endTime": [10, 0, 1],
+          "positionX": -300.0, "size": 1.0, "speed": 1.0,
+          "type": 1, "visibleTime": 99999.0, "yOffset": 0
+        },
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [12, 0, 1], "endTime": [12, 0, 1],
+          "positionX": -100.0, "size": 1.0, "speed": 1.0,
+          "type": 1, "visibleTime": 99999.0, "yOffset": 0
+        },
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [14, 0, 1], "endTime": [14, 0, 1],
+          "positionX": 100.0, "size": 1.0, "speed": 1.0,
+          "type": 4, "visibleTime": 99999.0, "yOffset": 0
+        },
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [16, 0, 1], "endTime": [16, 0, 1],
+          "positionX": 300.0, "size": 1.0, "speed": 1.0,
+          "type": 3, "visibleTime": 99999.0, "yOffset": 0
+        },
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [66, 0, 1], "endTime": [66, 0, 1],
+          "positionX": -200.0, "size": 1.0, "speed": 1.0,
+          "type": 1, "visibleTime": 99999.0, "yOffset": 0
+        },
+        {
+          "above": 1, "alpha": 255, "isFake": 0,
+          "startTime": [68, 0, 1], "endTime": [68, 0, 1],
+          "positionX": 250.0, "size": 1.0, "speed": 1.0,
+          "type": 1, "visibleTime": 99999.0, "yOffset": 0
+        }
+      ],
+      "eventLayers": [
+        {
+          "moveXEvents": [], "moveYEvents": [],
+          "rotateEvents": [
+            {
+              "bezier": 0, "bezierPoints": [0.0, 0.0, 0.0, 0.0],
+              "easingLeft": 0.0, "easingRight": 1.0, "easingType": 1,
+              "end": 80.0, "endTime": [64, 0, 1], "linkgroup": 0,
+              "start": 80.0, "startTime": [0, 0, 1]
+            }
+          ],
+          "alphaEvents": [], "speedEvents": []
+        },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] },
+        { "moveXEvents": [], "moveYEvents": [], "rotateEvents": [], "alphaEvents": [], "speedEvents": [] }
+      ]
+    }
+  ]
+}
