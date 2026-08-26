@@ -18,6 +18,20 @@ from rpe_render.renderer import RenderConfig, render
 
 
 class TestRenderIntegration:
+    def test_jpeg_output(self, minimal_chart_path, notes_dir, tmp_path):
+        out = tmp_path / "out.jpg"
+        render(
+            RenderConfig(
+                chart_path=minimal_chart_path,
+                output_path=out,
+                notes_dir=notes_dir,
+            )
+        )
+
+        image = Image.open(out)
+        assert image.format == "JPEG"
+        assert image.mode == "RGB"
+
     def test_minimal_chart_png(self, minimal_chart_path, notes_dir, tmp_path):
         out = tmp_path / "out.png"
         config = RenderConfig(
@@ -120,6 +134,14 @@ class TestRenderIntegration:
         assert config.preview_bg_alpha == 1.0
         config = RenderConfig(chart_path="x.json", preview_bg_alpha=-0.3)
         assert config.preview_bg_alpha == 0.0
+
+    def test_output_format_inferred_and_validated(self):
+        assert RenderConfig(chart_path="x.json", output_path="x.jpg").output_format == "jpg"
+        assert RenderConfig(
+            chart_path="x.json", output_path="x.png", output_format="jpeg"
+        ).output_format == "jpg"
+        with pytest.raises(ValueError, match="Unsupported output format"):
+            RenderConfig(chart_path="x.json", output_format="webp")
 
     def test_track_bg_alpha_darkens_note_area(self, minimal_chart_path, notes_dir, tmp_path):
         # 轨道区域（栏内）应显著暗于轨道间隔栏；预览区底色关闭以隔离本特性

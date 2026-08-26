@@ -196,6 +196,9 @@ def place_notes_on_axes(
             img,
             extent=extent,
             zorder=NOTE_BASE_ZORDER + z_idx,
-            interpolation="bilinear",
+            # Note 贴图已经按目标像素尺寸缓存；nearest 避免 Matplotlib
+            # 为数千个小图重复执行双线性重采样。
+            interpolation="nearest",
+            resample=False,
             clip_on=False,
         )

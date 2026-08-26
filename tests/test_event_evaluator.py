@@ -225,3 +225,12 @@ class TestJudgeLineXHoldValue:
         ev = make_event(start=0.0, end=100.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
         line = make_line([[ev], [], [], []])
         assert judge_line_x_at(line, 8.0) == pytest.approx(100.0)
+
+    def test_replacing_event_list_rebuilds_binary_index(self):
+        first = make_event(start=0.0, end=10.0)
+        line = make_line([[first], [], [], []])
+        assert judge_line_x_at(line, 8.0) == pytest.approx(5.0)
+
+        replacement = make_event(start=20.0, end=40.0)
+        line.event_layers[0].move_x_events = [replacement]
+        assert judge_line_x_at(line, 8.0) == pytest.approx(30.0)

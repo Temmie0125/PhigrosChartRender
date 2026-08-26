@@ -392,7 +392,8 @@ def _draw_icon(
         img,
         extent=[cx - w / 2, cx + w / 2, cy - h / 2, cy + h / 2],
         zorder=zorder,
-        interpolation="bilinear",
+        interpolation="nearest",
+        resample=False,
     )
 
 
@@ -419,7 +420,8 @@ def _draw_hold_piece(
             img,
             extent=[cx - half_w, cx + half_w, y_head - h / 2, y_head + h / 2],
             zorder=zorder,
-            interpolation="bilinear",
+            interpolation="nearest",
+            resample=False,
         )
         body_bottom = y_head + h / 2 - HOLD_BODY_OVERLAP_PX
     else:
@@ -432,7 +434,8 @@ def _draw_hold_piece(
             img,
             extent=[cx - half_w, cx + half_w, y_end - h / 2, y_end + h / 2],
             zorder=zorder,
-            interpolation="bilinear",
+            interpolation="nearest",
+            resample=False,
         )
         body_top = y_end - h / 2 + HOLD_BODY_OVERLAP_PX
     else:
@@ -445,7 +448,8 @@ def _draw_hold_piece(
             body,
             extent=[cx - half_w, cx + half_w, body_bottom, body_top],
             zorder=zorder,
-            interpolation="bilinear",
+            interpolation="nearest",
+            resample=False,
         )
 
 

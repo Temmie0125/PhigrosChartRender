@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass
 from math import cos, radians, sin
 from typing import TYPE_CHECKING, Optional
 
-from ..models import ChartData, EventData, JudgeLineData
-from ..time_utils import timet_to_beats
+from ..models import ChartData, EventData, EventLayer, JudgeLineData
 from .bezier import BezierEasing
 from .functions import EASING_TYPE_TO_NAME, get_easing_by_type
 
@@ -78,8 +78,8 @@ def evaluate_event_value(event: EventData, t_beat: float) -> float:
         ValueError: 若事件时长为零（t_end == t_start）
         KeyError: 若 easing_type 未知
     """
-    t_start = timet_to_beats(event.start_time)
-    t_end = timet_to_beats(event.end_time)
+    t_start = event.start_beat
+    t_end = event.end_beat
     duration = t_end - t_start
     if duration == 0.0:
         raise ValueError("event has zero duration (startTime == endTime)")
@@ -114,11 +114,27 @@ def find_enclosing_event(
         覆盖该时刻的事件，若无则返回 None
     """
     for event in events:
-        t_start = timet_to_beats(event.start_time)
-        t_end = timet_to_beats(event.end_time)
+        t_start = event.start_beat
+        t_end = event.end_beat
         if t_start <= t_beat <= t_end:
             return event
     return None
+
+
+def _latest_started_event(
+    layer: EventLayer, attr_name: str, t_beat: float
+) -> EventData | None:
+    events = getattr(layer, attr_name)
+    cached = layer.event_indices.get(attr_name)
+    if cached is None or cached[0] is not events:
+        ordered = sorted(events, key=lambda event: event.start_beat)
+        starts = [event.start_beat for event in ordered]
+        cached = (events, ordered, starts)
+        layer.event_indices[attr_name] = cached
+    else:
+        _, ordered, starts = cached
+    index = bisect_right(starts, t_beat) - 1
+    return ordered[index] if index >= 0 else None
 
 
 def _judge_line_attr_at(line: JudgeLineData, t_beat: float, attr_name: str) -> float:
@@ -146,13 +162,11 @@ def _judge_line_attr_at(line: JudgeLineData, t_beat: float, attr_name: str) -> f
         # 取最后一个 startTime <= t_beat 的事件（覆盖中或已结束保持）。
         # 事件列表在 chart_parser 解析时已按 startTime 排序；
         # 此处覆盖式选取对乱序输入同样稳健。
-        active: Optional[EventData] = None
-        for event in getattr(layer, attr_name):
-            if timet_to_beats(event.start_time) <= t_beat:
-                active = event
+        events = getattr(layer, attr_name)
+        active = _latest_started_event(layer, attr_name, t_beat) if events else None
         if active is None:
             continue
-        if t_beat >= timet_to_beats(active.end_time):
+        if t_beat >= active.end_beat:
             total += active.end  # 事件结束后的保持值
         else:
             total += evaluate_event_value(active, t_beat)

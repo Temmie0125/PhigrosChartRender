@@ -10,7 +10,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +23,7 @@ from .service import render_source
 
 class RenderOptions(BaseModel):
     dpi: int = Field(150, ge=72, le=600)
+    format: Literal["png", "jpg"] = "png"
     preview_bg_alpha: float = Field(0.55, ge=0.0, le=1.0)
     track_bg_alpha: float = Field(0.75, ge=0.0, le=1.0)
 
@@ -124,10 +125,11 @@ class JobManager:
             data = render_source(
                 job.source_path,
                 dpi=job.options.dpi,
+                output_format=job.options.format,
                 preview_bg_alpha=job.options.preview_bg_alpha,
                 track_bg_alpha=job.options.track_bg_alpha,
             )
-            result = job.work_dir / "preview.png"
+            result = job.work_dir / f"preview.{job.options.format}"
             result.write_bytes(data)
             job.result_path = result
             job.status, job.progress = "succeeded", 100
@@ -201,12 +203,14 @@ async def create_job(
     request: Request,
     file: UploadFile = File(...),
     dpi: int = Form(150),
+    format: Literal["png", "jpg"] = Form("png"),
     preview_bg_alpha: float = Form(0.55),
     track_bg_alpha: float = Form(0.75),
 ) -> JobResponse:
     manager.check_rate(request.client.host if request.client else "unknown")
     options = RenderOptions(
         dpi=dpi,
+        format=format,
         preview_bg_alpha=preview_bg_alpha,
         track_bg_alpha=track_bg_alpha,
     )
@@ -223,7 +227,12 @@ async def get_result(job_id: str) -> Any:
     job = manager.get(job_id)
     if job.status != "succeeded" or job.result_path is None:
         raise HTTPException(status_code=409, detail="任务尚未完成")
-    return FileResponse(job.result_path, media_type="image/png", filename="preview.png")
+    media_type = "image/jpeg" if job.options.format == "jpg" else "image/png"
+    return FileResponse(
+        job.result_path,
+        media_type=media_type,
+        filename=f"preview.{job.options.format}",
+    )
 
 
 @app.delete("/api/v1/jobs/{job_id}", status_code=204)

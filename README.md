@@ -16,7 +16,7 @@
 - **轨道加深**：每条 Note 轨道（栏内竖直区域，不含轨道间隔栏）叠加可配置透明度的加深底色，提高相邻轨道区分度
 - **位置重合标注**：同一开始时间的 Note 中，谱面原始 X 距离 ≤ 阈值（默认 75）的组，在其旁边标注 "×n"（Hold 仅以头部参与）
 - **底部信息栏**：曲名、时长、难度、曲师、谱师、BPM 范围（最低~最高）与四类 Note 统计（按类型着色），双边框卡片样式，背景与主区共用整图模糊曲绘
-- **可选背景**：曲绘高斯模糊（σ=15）作为整体背景，不指定则输出透明底 PNG
+- **可选背景**：曲绘高斯模糊（σ=15）作为整体背景，不指定则输出透明底 PNG；也可选择 JPG 输出以减小文件体积
 - **预览区底色**：谱面预览区叠加可配置透明度的半透明黑色底色，压暗背景突出白色标记与 Note
 - **自定义字体**：所有渲染文字（拍号/BPM/时值/计数/信息栏）统一使用可配置的主字体（默认 `resources/fonts/phi.ttf`），信息栏中文在字体缺字时按字形回退到系统 CJK 字体
 - **配置文件**：所有渲染参数可通过 `render_config.json` 覆盖默认值，无需修改代码
@@ -40,6 +40,8 @@ python -m rpe_render chart.json
 
 # 指定背景曲绘与输出路径
 python -m rpe_render chart.json --background art.png -o output.png
+# JPG 输出（文件体积更小）
+python -m rpe_render chart.json --background art.png -o output.jpg --format jpg
 
 # 全部参数
 python -m rpe_render chart.json --bg art.png -o out.png --dpi 300 --notes-dir resources/notes --preview-bg-alpha 0.4 --track-bg-alpha 0.75 --config render_config.json
@@ -50,7 +52,8 @@ python -m rpe_render chart.json --bg art.png -o out.png --dpi 300 --notes-dir re
 | `chart` | RPE JSON 谱面文件路径（必填） | - |
 | `--config` | 配置文件路径（JSON，覆盖 constants 默认值） | 当前目录下 `render_config.json` |
 | `--background` / `--bg` | 背景曲绘图片路径 | 无（透明背景） |
-| `-o` / `--output` | 输出 PNG 路径 | `output.png` |
+| `-o` / `--output` | 输出图片路径 | `output.png` |
+| `--format` | 输出格式：`png` / `jpg`；省略时按输出扩展名推断 | - |
 | `--dpi` | 输出 DPI | 150 |
 | `--notes-dir` | Note 贴图目录 | `resources/notes` |
 | `--preview-bg-alpha` | 谱面预览区半透明黑色底色透明度（0.0 关闭 ~ 1.0） | 0.55 |

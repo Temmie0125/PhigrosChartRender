@@ -1,9 +1,10 @@
-"""主渲染协调器：编排所有模块，执行完整渲染流程并输出 PNG。"""
+"""主渲染协调器：编排所有模块，执行完整渲染流程并输出图片。"""
 
 from __future__ import annotations
 
 import logging
 from math import ceil, cos, radians
+from pathlib import Path
 
 import matplotlib
 
@@ -11,6 +12,7 @@ matplotlib.use("Agg")  # 无显示环境下也可渲染
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from PIL import Image
 
 from .affected_area_renderer import (
     affected_column_indices,
@@ -20,10 +22,10 @@ from .affected_area_renderer import (
     render_affected_boxes,
 )
 from .background import (
-    apply_background_to_canvas,
     apply_preview_overlay,
     apply_track_overlays,
     load_and_blur_background,
+    save_rendered_image,
 )
 from .chart_parser import parse_chart, validate_chart
 from .constants import (
@@ -74,6 +76,7 @@ class RenderConfig:
         chart_path: str | object,
         background_path: str | object | None = None,
         output_path: str | object = "output.png",
+        output_format: str | None = None,
         notes_dir: str | object = "resources/notes",
         dpi: int = OUTPUT_DPI,
         preview_bg_alpha: float = PREVIEW_BG_ALPHA,
@@ -82,12 +85,31 @@ class RenderConfig:
         self.chart_path = chart_path
         self.background_path = background_path
         self.output_path = output_path
+        self.output_format = _normalize_output_format(output_format, output_path)
         self.notes_dir = notes_dir
         self.dpi = dpi
         # 谱面预览区半透明黑色底色透明度（0.0 ~ 1.0）
         self.preview_bg_alpha = min(max(preview_bg_alpha, 0.0), 1.0)
         # 每条 Note 轨道区域额外加深透明度（0.0 ~ 1.0）
         self.track_bg_alpha = min(max(track_bg_alpha, 0.0), 1.0)
+
+
+def _normalize_output_format(
+    output_format: str | None, output_path: str | object
+) -> str:
+    """归一化输出格式；未指定时从输出文件扩展名推断。"""
+    value = output_format
+    if value is None:
+        suffix = Path(str(output_path)).suffix.lower().lstrip(".")
+        value = suffix or "png"
+    normalized = str(value).lower().lstrip(".")
+    if normalized == "jpeg":
+        normalized = "jpg"
+    if normalized not in {"png", "jpg"}:
+        raise ValueError(
+            f"Unsupported output format: {value!r}; expected 'png' or 'jpg'"
+        )
+    return normalized
 
 
 def _create_figure(columns: list[ColumnInfo], dpi: int) -> tuple[Figure, Axes, Axes]:
@@ -231,22 +253,11 @@ def render(config: RenderConfig) -> None:
     )
     canvas_h_px = COLUMN_BEATS * BEAT_HEIGHT_PX
 
-    # [可选] 背景：模糊曲绘按总画布（主区 + 信息栏）整体裁剪后
-    # 切片铺满两个 Axes，保证整图背景连续一致
-    has_background = False
+    # [可选] 背景只在此处加载。Matplotlib 始终渲染透明前景，曲绘在
+    # Phase 5 由 Pillow 一次性合成，避免长谱面的背景分块产生大量 artist。
+    bg = None
     if config.background_path:
         bg = load_and_blur_background(config.background_path)
-        if bg is not None:
-            apply_background_to_canvas(
-                ax,
-                ax_info,
-                bg,
-                canvas_w_px,
-                canvas_h_px,
-                INFO_BAR_HEIGHT_PX,
-                x_min=-SIDE_MARKER_PADDING_PX,
-            )
-            has_background = True
 
     # 谱面预览区半透明黑色底色（可配置透明度）
     apply_preview_overlay(
@@ -326,12 +337,31 @@ def render(config: RenderConfig) -> None:
     )
 
     # ===== Phase 5: 输出 =====
-    fig.savefig(
+    # 直接读取 Agg 的 RGBA 缓冲区，避免先编码一遍临时 PNG。copy() 使前景
+    # 脱离 Matplotlib 画布，随后即可尽早释放 figure/artist 占用的内存。
+    fig.patch.set_alpha(0.0)
+    ax.patch.set_alpha(0.0)
+    ax_info.patch.set_alpha(0.0)
+    try:
+        fig.canvas.draw()
+        foreground = Image.frombuffer(
+            "RGBA",
+            fig.canvas.get_width_height(),
+            fig.canvas.buffer_rgba(),
+            "raw",
+            "RGBA",
+            0,
+            1,
+        ).copy()
+    finally:
+        plt.close(fig)
+
+    save_rendered_image(
+        foreground,
         config.output_path,
-        dpi=config.dpi,
-        transparent=not has_background,
+        config.output_format,
+        bg_image=bg,
     )
-    plt.close(fig)
     logger.info("Rendered chart preview to %s", config.output_path)
 
 

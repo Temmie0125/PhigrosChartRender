@@ -125,6 +125,9 @@ FONT_PATH: str = "resources/fonts/phi.ttf"
 # 输出 DPI
 OUTPUT_DPI: int = 150
 
+# JPEG 输出质量（1~95）；较低质量可显著减小大谱面结果体积。
+JPEG_QUALITY: int = 85
+
 # 贝塞尔曲线插值密度
 BEZIER_INTERPOLATION_DENSITY: int = 256
 

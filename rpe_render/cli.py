@@ -35,7 +35,7 @@ def parse_args(argv: list[str] | None = None):
     Usage:
         python -m rpe_render chart.json
         python -m rpe_render chart.json --background art.png
-        python -m rpe_render chart.json -o output.png --config render_config.json
+        python -m rpe_render chart.json -o output.png --format png --config render_config.json
     """
     # 延迟导入：确保 parse_args 在 main() 应用配置文件之后才被调用，
     # argparse 默认值取自应用过覆盖的常量。
@@ -75,7 +75,13 @@ def parse_args(argv: list[str] | None = None):
         "--output",
         type=Path,
         default=Path("output.png"),
-        help="输出 PNG 文件路径（默认: output.png）",
+        help="输出图片文件路径（默认: output.png）",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("png", "jpg", "jpeg"),
+        default=None,
+        help="输出格式；未指定时按输出文件扩展名推断（png/jpg）",
     )
     parser.add_argument(
         "--dpi",
@@ -108,11 +114,23 @@ def parse_args(argv: list[str] | None = None):
         ),
     )
     args = parser.parse_args(argv)
+    raw_args = list(argv) if argv is not None else sys.argv[1:]
+    output_path = args.output
+    has_explicit_output = any(
+        token == "-o"
+        or token == "--output"
+        or token.startswith("--output=")
+        for token in raw_args
+    )
+    if args.format and not has_explicit_output:
+        suffix = "jpg" if args.format == "jpeg" else args.format
+        output_path = Path(f"output.{suffix}")
 
     return RenderConfig(
         chart_path=args.chart,
         background_path=args.background,
-        output_path=args.output,
+        output_path=output_path,
+        output_format=args.format,
         notes_dir=args.notes_dir,
         dpi=args.dpi,
         preview_bg_alpha=args.preview_bg_alpha,
@@ -154,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
                 background_path=config.background_path,
                 notes_dir=config.notes_dir,
                 dpi=config.dpi,
+                output_format=config.output_format,
                 preview_bg_alpha=config.preview_bg_alpha,
                 track_bg_alpha=config.track_bg_alpha,
             )

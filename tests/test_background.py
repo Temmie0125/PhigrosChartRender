@@ -14,6 +14,7 @@ from rpe_render.background import (
     apply_track_overlays,
     cover_crop,
     load_and_blur_background,
+    save_rendered_image,
 )
 from rpe_render.constants import TRACK_BG_ALPHA
 from rpe_render.models import ColumnInfo
@@ -75,6 +76,29 @@ class TestLoadAndBlur:
         center = bg[16:48, 16:48]
         mean = center.mean()
         assert 30 < mean < 225  # 已不是原始的纯黑/纯白
+
+
+class TestSaveRenderedImage:
+    def test_composes_background_under_transparent_foreground(self, tmp_path):
+        foreground = Image.new("RGBA", (4, 3), (255, 0, 0, 128))
+        background = np.full((2, 2, 3), (0, 0, 200), dtype=np.uint8)
+        output = tmp_path / "composited.png"
+
+        save_rendered_image(
+            foreground, output, "png", bg_image=background, brightness=1.0
+        )
+
+        result = Image.open(output).convert("RGBA")
+        assert result.size == (4, 3)
+        assert result.getpixel((0, 0)) == (128, 0, 100, 255)
+
+    def test_jpeg_flattens_transparency(self, tmp_path):
+        output = tmp_path / "flattened.jpg"
+        save_rendered_image(Image.new("RGBA", (4, 3), (0, 0, 0, 0)), output, "jpg")
+
+        result = Image.open(output)
+        assert result.format == "JPEG"
+        assert result.mode == "RGB"
 
 
 class TestCoverCrop:

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,8 @@ from PIL import Image, ImageEnhance
 from .constants import (
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
+    BG_COLOR,
+    JPEG_QUALITY,
     PREVIEW_BG_ALPHA,
     TRACK_BG_ALPHA,
 )
@@ -32,6 +35,7 @@ BACKGROUND_ZORDER = -1
 # 临时数组。长谱面画布很容易达到上亿像素，改为小块贴图可将峰值内存
 # 限制在单个 tile 大小，同时保持最终输出尺寸不变。
 BACKGROUND_TILE_SIZE_PX = 1024
+BACKGROUND_TILE_MAX_PIXELS = 8_000_000
 
 # 覆盖层 zorder：位于曲绘背景（-1）之上、网格线（0）之下
 PREVIEW_BG_ZORDER = -0.5
@@ -191,6 +195,68 @@ def apply_background_to_canvas(
     )
 
 
+def save_rendered_image(
+    foreground: Image.Image | bytes,
+    output_path: str | Path,
+    output_format: str,
+    *,
+    bg_image: np.ndarray | None = None,
+    brightness: float = BACKGROUND_BRIGHTNESS,
+) -> None:
+    """用 Pillow 保存透明前景，并按需一次性合成曲绘背景。
+
+    主渲染路径不再让 Matplotlib 处理整幅背景图：Matplotlib 只绘制透明
+    前景，随后 Pillow 负责一次 cover 裁剪和 alpha 合成。对长谱面而言，
+    这比大量 AxesImage 分块绘制更快，也避免 Agg 在背景层申请巨型临时数组。
+    """
+    if isinstance(foreground, Image.Image):
+        foreground_image = foreground.convert("RGBA")
+    else:
+        with Image.open(BytesIO(foreground)) as fg_source:
+            foreground_image = fg_source.convert("RGBA")
+
+    if bg_image is not None:
+        background = Image.fromarray(bg_image).convert("RGB")
+        background = cover_crop(background, *foreground_image.size)
+        if brightness != 1.0:
+            background = ImageEnhance.Brightness(background).enhance(brightness)
+        result = Image.alpha_composite(background.convert("RGBA"), foreground_image)
+    else:
+        result = foreground_image
+
+    if output_format == "jpg":
+        # JPEG 不支持 alpha；无曲绘时使用与原渲染路径一致的画布底色。
+        if bg_image is None:
+            flattened = Image.new("RGBA", result.size, BG_COLOR)
+            flattened.alpha_composite(result)
+            result = flattened
+        result.convert("RGB").save(
+            output_path,
+            format="JPEG",
+            quality=JPEG_QUALITY,
+        )
+    else:
+        result.save(output_path, format="PNG")
+
+
+def compose_background_and_save(
+    foreground: Image.Image | bytes,
+    bg_image: np.ndarray,
+    output_path: str | Path,
+    output_format: str,
+    *,
+    brightness: float = BACKGROUND_BRIGHTNESS,
+) -> None:
+    """兼容入口：将透明前景与背景合成并保存。"""
+    save_rendered_image(
+        foreground,
+        output_path,
+        output_format,
+        bg_image=bg_image,
+        brightness=brightness,
+    )
+
+
 def _imshow_tiled(
     ax: Axes,
     image: np.ndarray,
@@ -210,15 +276,21 @@ def _imshow_tiled(
     if height <= 0 or width <= 0:
         return
     tile_size = max(1, int(tile_size))
+    # 长谱面的宽度通常远大于高度；优先整宽分块，只沿 Y 方向切片，
+    # 将 AxesImage 数量从数百个降到十几个，同时让单块仍远小于整图。
+    tile_width = width
+    if width > BACKGROUND_TILE_MAX_PIXELS:
+        tile_width = tile_size
+    tile_height = min(tile_size, max(1, BACKGROUND_TILE_MAX_PIXELS // tile_width))
     x_span = x_max - x_min
     y_span = y_max - y_min
 
-    for top in range(0, height, tile_size):
-        bottom = min(top + tile_size, height)
+    for top in range(0, height, tile_height):
+        bottom = min(top + tile_height, height)
         tile_y_top = y_max - (top / height) * y_span
         tile_y_bottom = y_max - (bottom / height) * y_span
-        for left in range(0, width, tile_size):
-            right = min(left + tile_size, width)
+        for left in range(0, width, tile_width):
+            right = min(left + tile_width, width)
             tile_x_left = x_min + (left / width) * x_span
             tile_x_right = x_min + (right / width) * x_span
             ax.imshow(
@@ -226,7 +298,8 @@ def _imshow_tiled(
                 extent=[tile_x_left, tile_x_right, tile_y_bottom, tile_y_top],
                 aspect="auto",
                 zorder=BACKGROUND_ZORDER,
-                interpolation="bilinear",
+                interpolation="nearest",
+                resample=False,
             )
 
 

@@ -25,7 +25,7 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ## API
 
 - `GET /api/v1/health`
-- `POST /api/v1/jobs`（multipart 字段 `file`，可选 `dpi`、`preview_bg_alpha`、`track_bg_alpha`）
+- `POST /api/v1/jobs`（multipart 字段 `file`，可选 `format`（`png`/`jpg`）、`dpi`、`preview_bg_alpha`、`track_bg_alpha`）
 - `GET /api/v1/jobs/{job_id}`
 - `GET /api/v1/jobs/{job_id}/result`
 - `DELETE /api/v1/jobs/{job_id}`

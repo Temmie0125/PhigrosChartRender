@@ -17,17 +17,24 @@ def render_source(
     dpi: int = 150,
     preview_bg_alpha: float = 0.55,
     track_bg_alpha: float = 0.75,
+    output_format: str = "png",
 ) -> bytes:
-    """Render a JSON/PEZ/ZIP source and return the PNG bytes."""
+    """Render a JSON/PEZ/ZIP source and return PNG or JPEG bytes."""
+    normalized_format = output_format.lower().lstrip(".")
+    if normalized_format == "jpeg":
+        normalized_format = "jpg"
+    if normalized_format not in {"png", "jpg"}:
+        raise ValueError("output_format must be 'png' or 'jpg'")
     with load_chart_input(source) as chart_input:
         background = Path(background_path) if background_path else chart_input.background_path
         with tempfile.TemporaryDirectory(prefix="rpe-render-") as output_dir:
-            output = Path(output_dir) / "preview.png"
+            output = Path(output_dir) / f"preview.{normalized_format}"
             render(
                 RenderConfig(
                     chart_path=chart_input.chart_path,
                     background_path=background,
                     output_path=output,
+                    output_format=normalized_format,
                     notes_dir=notes_dir,
                     dpi=dpi,
                     preview_bg_alpha=preview_bg_alpha,

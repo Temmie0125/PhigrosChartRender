@@ -51,6 +51,16 @@ class EventData:
     start_time: list[int]  # TimeT
     end_time: list[int]  # TimeT
     linkgroup: int  # 链接组（暂不使用）
+    start_beat: float = field(init=False)
+    end_beat: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        # 事件求值会在每个 Note/轨迹采样点重复访问时间边界；解析时缓存
+        # 拍数，避免在热路径中反复进行 TimeT 浮点转换。
+        from .time_utils import timet_to_beats
+
+        self.start_beat = timet_to_beats(tuple(self.start_time))
+        self.end_beat = timet_to_beats(tuple(self.end_time))
 
 
 @dataclass
@@ -62,6 +72,11 @@ class EventLayer:
     rotate_events: list[EventData] = field(default_factory=list)
     alpha_events: list[EventData] = field(default_factory=list)
     speed_events: list[EventData] = field(default_factory=list)
+    # 事件热路径索引由 event_evaluator 惰性填充，生命周期与谱面一致，
+    # 避免服务进程通过模块级缓存永久持有已经完成的渲染任务。
+    event_indices: dict[
+        str, tuple[list[EventData], list[EventData], list[float]]
+    ] = field(default_factory=dict, init=False, repr=False)
 
 
 @dataclass

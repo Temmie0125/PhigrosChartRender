@@ -321,7 +321,8 @@ def render_hold_body(
         img,
         extent=extent,
         zorder=HOLD_BODY_ZORDER,
-        interpolation="bilinear",
+        interpolation="nearest",
+        resample=False,
         clip_on=False,
     )
 
@@ -400,7 +401,8 @@ def _place_centered(
         img,
         extent=extent,
         zorder=zorder,
-        interpolation="bilinear",
+        interpolation="nearest",
+        resample=False,
         clip_on=False,
     )
 

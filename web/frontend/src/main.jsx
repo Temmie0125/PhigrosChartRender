@@ -8,7 +8,7 @@ function App() {
   const [file, setFile] = useState(null)
   const [job, setJob] = useState(null)
   const [error, setError] = useState('')
-  const [options, setOptions] = useState({ dpi: 150, preview_bg_alpha: 0.55, track_bg_alpha: 0.75 })
+  const [options, setOptions] = useState({ format: 'png', dpi: 150, preview_bg_alpha: 0.55, track_bg_alpha: 0.75 })
 
   useEffect(() => {
     if (!job || ['succeeded', 'failed'].includes(job.status)) return undefined
@@ -47,6 +47,7 @@ function App() {
           <span>{file ? file.name : '点击选择或拖入谱面文件'}</span>
         </label>
         <div className="options">
+          <label>输出格式 <select value={options.format} onChange={e => setOptions({...options, format: e.target.value})}><option value="png">PNG（透明）</option><option value="jpg">JPG（体积更小）</option></select></label>
           <label>DPI <input type="number" min="72" max="600" value={options.dpi} onChange={e => setOptions({...options, dpi: e.target.value})} /></label>
           <label>预览背景透明度 <input type="number" min="0" max="1" step="0.05" value={options.preview_bg_alpha} onChange={e => setOptions({...options, preview_bg_alpha: e.target.value})} /></label>
           <label>轨道透明度 <input type="number" min="0" max="1" step="0.05" value={options.track_bg_alpha} onChange={e => setOptions({...options, track_bg_alpha: e.target.value})} /></label>
@@ -55,7 +56,7 @@ function App() {
         <button type="submit" disabled={!file || (job && ['queued', 'running'].includes(job.status))}>开始渲染</button>
       </form>
       {error && <p className="error">{error}</p>}
-      {job && <div className="result"><p>状态：{job.status}（{job.progress}%）</p>{job.error && <p className="error">{job.error}</p>}{job.status === 'succeeded' && <><img src={`${API_BASE}${job.result_url}`} /><a className="download" href={`${API_BASE}${job.result_url}`} download="preview.png">下载 PNG</a></>}</div>}
+      {job && <div className="result"><p>状态：{job.status}（{job.progress}%）</p>{job.error && <p className="error">{job.error}</p>}{job.status === 'succeeded' && <><img src={`${API_BASE}${job.result_url}`} /><a className="download" href={`${API_BASE}${job.result_url}`} download={`preview.${options.format}`}>下载 {options.format.toUpperCase()}</a></>}</div>}
     </section>
   </main>
 }
