@@ -118,6 +118,12 @@ uvicorn rpe_render.api:app --host 127.0.0.1 --port 8000
 
 API 使用内存任务队列和本地临时目录。任务结果默认保留 30 分钟，服务重启时自动删除旧任务。
 
+前端会先调用 `POST /api/v1/charts/metadata` 读取谱面元数据，再将用户编辑的
+`name`、`charter`、`level`、`composer` 作为表单字段提交到 `POST /api/v1/jobs`。
+任务还支持 `format`（`png`/`jpg`）、`dpi`、`preview_bg_alpha`、`track_bg_alpha`、
+`background_blur_sigma` 与 `background_brightness`；后两项和透明度属于高级设置，
+通常应保持默认值。
+
 可配置环境变量：
 
 | 变量 | 默认值 | 说明 |

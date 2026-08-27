@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from .constants import BACKGROUND_BLUR_SIGMA, BACKGROUND_BRIGHTNESS
 from .package_loader import ChartPackageError, load_chart_input
 from .renderer import RenderConfig, render
 
@@ -18,6 +19,9 @@ def render_source(
     preview_bg_alpha: float = 0.55,
     track_bg_alpha: float = 0.75,
     output_format: str = "png",
+    metadata: dict[str, str] | None = None,
+    background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
+    background_brightness: float = BACKGROUND_BRIGHTNESS,
 ) -> bytes:
     """Render a JSON/PEZ/ZIP source and return PNG or JPEG bytes."""
     normalized_format = output_format.lower().lstrip(".")
@@ -39,6 +43,9 @@ def render_source(
                     dpi=dpi,
                     preview_bg_alpha=preview_bg_alpha,
                     track_bg_alpha=track_bg_alpha,
+                    metadata=metadata,
+                    background_blur_sigma=background_blur_sigma,
+                    background_brightness=background_brightness,
                 )
             )
             return output.read_bytes()

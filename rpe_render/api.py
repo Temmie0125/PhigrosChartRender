@@ -17,7 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .package_loader import ChartPackageError
+from .chart_parser import parse_chart
+from .constants import BACKGROUND_BLUR_SIGMA, BACKGROUND_BRIGHTNESS
+from .package_loader import ChartPackageError, load_chart_input
 from .service import render_source
 
 
@@ -26,6 +28,19 @@ class RenderOptions(BaseModel):
     format: Literal["png", "jpg"] = "png"
     preview_bg_alpha: float = Field(0.55, ge=0.0, le=1.0)
     track_bg_alpha: float = Field(0.75, ge=0.0, le=1.0)
+    name: str | None = Field(None, max_length=200)
+    charter: str | None = Field(None, max_length=200)
+    level: str | None = Field(None, max_length=80)
+    composer: str | None = Field(None, max_length=200)
+    background_blur_sigma: float = Field(BACKGROUND_BLUR_SIGMA, ge=0.0, le=100.0)
+    background_brightness: float = Field(BACKGROUND_BRIGHTNESS, ge=0.0, le=2.0)
+
+
+class ChartMetadataResponse(BaseModel):
+    name: str
+    charter: str
+    level: str
+    composer: str
 
 
 class JobResponse(BaseModel):
@@ -128,6 +143,18 @@ class JobManager:
                 output_format=job.options.format,
                 preview_bg_alpha=job.options.preview_bg_alpha,
                 track_bg_alpha=job.options.track_bg_alpha,
+                metadata={
+                    key: value
+                    for key, value in {
+                        "name": job.options.name,
+                        "charter": job.options.charter,
+                        "level": job.options.level,
+                        "composer": job.options.composer,
+                    }.items()
+                    if value is not None
+                },
+                background_blur_sigma=job.options.background_blur_sigma,
+                background_brightness=job.options.background_brightness,
             )
             result = job.work_dir / f"preview.{job.options.format}"
             result.write_bytes(data)
@@ -206,6 +233,12 @@ async def create_job(
     format: Literal["png", "jpg"] = Form("png"),
     preview_bg_alpha: float = Form(0.55),
     track_bg_alpha: float = Form(0.75),
+    name: str | None = Form(None),
+    charter: str | None = Form(None),
+    level: str | None = Form(None),
+    composer: str | None = Form(None),
+    background_blur_sigma: float = Form(BACKGROUND_BLUR_SIGMA),
+    background_brightness: float = Form(BACKGROUND_BRIGHTNESS),
 ) -> JobResponse:
     manager.check_rate(request.client.host if request.client else "unknown")
     options = RenderOptions(
@@ -213,8 +246,46 @@ async def create_job(
         format=format,
         preview_bg_alpha=preview_bg_alpha,
         track_bg_alpha=track_bg_alpha,
+        name=name,
+        charter=charter,
+        level=level,
+        composer=composer,
+        background_blur_sigma=background_blur_sigma,
+        background_brightness=background_brightness,
     )
     return _response(await manager.create(file, options))
+
+
+@app.post("/api/v1/charts/metadata", response_model=ChartMetadataResponse)
+async def read_chart_metadata(file: UploadFile = File(...)) -> ChartMetadataResponse:
+    """读取上传谱面的四项可编辑元数据，不创建渲染任务。"""
+    suffix = Path(file.filename or "chart.zip").suffix.lower()
+    if suffix not in {".json", ".pez", ".zip"}:
+        raise HTTPException(status_code=415, detail="仅支持 JSON、PEZ 或 ZIP 文件")
+    temp_root = Path(tempfile.mkdtemp(prefix="rpe-metadata-"))
+    source = temp_root / f"source{suffix}"
+    size = 0
+    try:
+        with source.open("wb") as dst:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > manager.max_upload:
+                    raise HTTPException(status_code=413, detail="上传文件超过大小限制")
+                dst.write(chunk)
+        with load_chart_input(source, strict_picture=False) as chart_input:
+            meta = parse_chart(chart_input.chart_path).meta
+        return ChartMetadataResponse(
+            name=meta.name,
+            charter=meta.charter,
+            level=meta.level,
+            composer=meta.composer,
+        )
+    except HTTPException:
+        raise
+    except (ChartPackageError, FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 @app.get("/api/v1/jobs/{job_id}", response_model=JobResponse)

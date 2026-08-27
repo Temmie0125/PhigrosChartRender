@@ -35,6 +35,8 @@ from .constants import (
     INFO_BAR_HEIGHT_PX,
     OUTPUT_DPI,
     PREVIEW_BG_ALPHA,
+    BACKGROUND_BLUR_SIGMA,
+    BACKGROUND_BRIGHTNESS,
     SIDE_MARKER_PADDING_PX,
     TRACK_BG_ALPHA,
 )
@@ -81,6 +83,9 @@ class RenderConfig:
         dpi: int = OUTPUT_DPI,
         preview_bg_alpha: float = PREVIEW_BG_ALPHA,
         track_bg_alpha: float = TRACK_BG_ALPHA,
+        metadata: dict[str, str] | None = None,
+        background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
+        background_brightness: float = BACKGROUND_BRIGHTNESS,
     ):
         self.chart_path = chart_path
         self.background_path = background_path
@@ -92,6 +97,9 @@ class RenderConfig:
         self.preview_bg_alpha = min(max(preview_bg_alpha, 0.0), 1.0)
         # 每条 Note 轨道区域额外加深透明度（0.0 ~ 1.0）
         self.track_bg_alpha = min(max(track_bg_alpha, 0.0), 1.0)
+        self.metadata = dict(metadata or {})
+        self.background_blur_sigma = min(max(float(background_blur_sigma), 0.0), 100.0)
+        self.background_brightness = min(max(float(background_brightness), 0.0), 2.0)
 
 
 def _normalize_output_format(
@@ -169,6 +177,10 @@ def render(config: RenderConfig) -> None:
     """
     # ===== Phase 1: 解析 =====
     chart = parse_chart(config.chart_path)
+    # 元数据覆盖仅作用于当前渲染任务，不回写上传文件。
+    for field_name in ("name", "charter", "level", "composer"):
+        if field_name in config.metadata:
+            setattr(chart.meta, field_name, str(config.metadata[field_name]))
     issues = validate_chart(chart)
     for issue in issues:
         logger.warning("Validation: %s", issue)
@@ -257,7 +269,10 @@ def render(config: RenderConfig) -> None:
     # Phase 5 由 Pillow 一次性合成，避免长谱面的背景分块产生大量 artist。
     bg = None
     if config.background_path:
-        bg = load_and_blur_background(config.background_path)
+        bg = load_and_blur_background(
+            config.background_path,
+            blur_sigma=config.background_blur_sigma,
+        )
 
     # 谱面预览区半透明黑色底色（可配置透明度）
     apply_preview_overlay(
@@ -356,6 +371,7 @@ def render(config: RenderConfig) -> None:
         config.output_path,
         config.output_format,
         bg_image=bg,
+        brightness=config.background_brightness,
     )
     logger.info("Rendered chart preview to %s", config.output_path)
 

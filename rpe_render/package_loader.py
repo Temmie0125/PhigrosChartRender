@@ -118,12 +118,18 @@ def _resolve_picture(root: Path, chart_path: Path, info: dict[str, str], *, stri
     try:
         relative = _safe_relative(declared)
     except PackageFormatError as exc:
-        raise MissingPictureError("未找到曲绘") from exc
+        if strict:
+            raise MissingPictureError("未找到曲绘") from exc
+        return None
     picture = (root / relative).resolve()
     if root.resolve() not in picture.parents or not picture.is_file():
-        raise MissingPictureError("未找到曲绘")
+        if strict:
+            raise MissingPictureError("未找到曲绘")
+        return None
     if picture.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
-        raise MissingPictureError("未找到曲绘")
+        if strict:
+            raise MissingPictureError("未找到曲绘")
+        return None
     return picture
 
 

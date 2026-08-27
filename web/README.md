@@ -25,7 +25,8 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ## API
 
 - `GET /api/v1/health`
-- `POST /api/v1/jobs`（multipart 字段 `file`，可选 `format`（`png`/`jpg`）、`dpi`、`preview_bg_alpha`、`track_bg_alpha`）
+- `POST /api/v1/charts/metadata`（multipart 字段 `file`；读取 `name`、`charter`、`level`、`composer`，不创建任务）
+- `POST /api/v1/jobs`（multipart 字段 `file`，可选 `format`（`png`/`jpg`）、`dpi`、`preview_bg_alpha`、`track_bg_alpha`、`background_blur_sigma`、`background_brightness`，以及用于覆盖信息栏的 `name`、`charter`、`level`、`composer`）
 - `GET /api/v1/jobs/{job_id}`
 - `GET /api/v1/jobs/{job_id}/result`
 - `DELETE /api/v1/jobs/{job_id}`
