@@ -7,7 +7,7 @@
    ],
    "META" : {
       "RPEVersion" : 170,
-      "background" : "6066318204870902.png",
+      "background" : "Illustration.png",
       "charter" : "Reborned -Temmie-",
       "composer" : "AiSS vs. Abit",
       "duration" : 168.78199799999999,
@@ -15,10 +15,10 @@
       "illustration" : "nanakaria",
       "level" : "AT  Lv.16",
       "name" : "Regnaissance",
-      "offset" : -10,
-      "song" : "6066318204870902.ogg"
+      "offset" : -40,
+      "song" : "music.ogg"
    },
-   "chartTime" : 43102.969578599572,
+   "chartTime" : 43370.549362099569,
    "judgeLineGroup" : [ "Default" ],
    "judgeLineList" : [
       {
@@ -12953,13 +12953,13 @@
             {
                "above" : 1,
                "alpha" : 255,
-               "endTime" : [ 111, 3, 4 ],
+               "endTime" : [ 111, 7, 8 ],
                "isFake" : 0,
                "judgeArea" : 1.0,
                "positionX" : 450.0,
                "size" : 1.0,
                "speed" : 1.0,
-               "startTime" : [ 111, 5, 8 ],
+               "startTime" : [ 111, 3, 4 ],
                "tint" : [ 255, 255, 255 ],
                "type" : 2,
                "visibleTime" : 999999.0,
