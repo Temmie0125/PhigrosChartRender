@@ -8,6 +8,7 @@ from rpe_render.constants import NOTE_ICON_WIDTH
 from rpe_render.models import NoteData, NoteRenderInfo
 from rpe_render.note_renderer import (
     NoteImageLoader,
+    apply_note_bomb_defense,
     detect_multitap_groups,
     note_zorder_key,
     place_notes_on_axes,
@@ -186,6 +187,44 @@ class TestDetectMultitap:
             make_note(1, 4.0, raw_start=[4, 0, 1]),
         ]
         assert detect_multitap_groups(notes) == {0, 1, 2}
+
+
+class TestNoteBombDefense:
+    def test_caps_exact_duplicates_and_keeps_full_list(self):
+        notes = [make_info(1, 4.0) for _ in range(10)]
+        selected = apply_note_bomb_defense(notes)
+        assert len(selected) == 4
+        assert sum(note.render_enabled for note in notes) == 4
+
+    def test_prioritizes_one_of_each_type(self):
+        notes = [
+            make_info(note_type, 4.0)
+            for note_type in (1, 2, 3, 4)
+            for _ in range(3)
+        ]
+        apply_note_bomb_defense(notes)
+        rendered = [note.note.type for note in notes if note.render_enabled]
+        assert len(rendered) == 4
+        assert set(rendered) == {1, 2, 3, 4}
+
+    def test_nearby_position_is_not_pruned_by_overlap_tolerance(self):
+        first = make_info(1, 4.0)
+        second = make_info(1, 4.0)
+        # 50 is inside the quantity marker's default 75-unit tolerance, but
+        # the bomb defense must still treat it as a distinct position.
+        second.true_x = 50.0
+        notes = [first, second]
+        apply_note_bomb_defense(notes)
+        assert all(note.render_enabled for note in notes)
+
+    def test_different_hold_geometry_is_kept(self):
+        first = make_info(2, 4.0)
+        second = make_info(2, 4.0)
+        first.end_beat = 8.0
+        second.end_beat = 9.0
+        notes = [first, second]
+        apply_note_bomb_defense(notes)
+        assert all(note.render_enabled for note in notes)
 
 
 class TestPlaceNotesNotClippedAtBoundary:

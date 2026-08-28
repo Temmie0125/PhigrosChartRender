@@ -200,6 +200,7 @@ rpe_render/
 | Hold Body | 始终竖直矩形拉伸；段内 Head/End 与 Body 同 X 对齐；跨栏分段各用段内 X（尾段/中段取本段起始时刻判定线 X 映射到本栏）；Body 向两端延伸 `HOLD_BODY_OVERLAP_PX`（默认 1px）重叠拼接，消除接缝；轨迹曲线仅当持续期内存在实际位移（像素 X 范围 ≥ `HOLD_TRAJECTORY_MIN_DISPLACEMENT_PX`，默认 1px）时渲染 |
 | 时值间隔标记 | 仅 Tap+Hold 跨类型混合排序，间隔 ≤ 1/4 拍（16 分音符）标记 N 分音符刻度（label = 4/间隔拍数） |
 | 位置重合标注 | 仅同一主谱面实际开始时间的 Note 参与判定；组内按真实 X 距离 ≤ `NOTE_OVERLAP_THRESHOLD_X`（默认 75）聚类，在组最右 Note 旁标注 "×n"；Hold 只以头部计入 |
+| Note 炸弹防御 | 仅对同一实际开始时间、精确相同渲染位置且几何完全一致的重复 Note 生效；默认最多绘制 4 个，按类型轮询优先覆盖 Tap/Hold/Flick/Drag；原始 Note 仍用于数量标注与统计 |
 | 判定线坐标 | 全部 4 层 `moveXEvents`/`moveYEvents`/`rotateEvents` 叠加；父线递归变换，`rotateWithFather` 控制角度继承 |
 | BPM 因数 | `displayBeat = localBeat × bpmfactor`，Note、Hold、轨迹、标记和重合判断统一使用映射后的主谱面时间 |
 | 忽略字段 | `above`/`yOffset`/`size`/`speed`/判定线视觉属性/extended 事件不参与预览 |
@@ -231,8 +232,11 @@ python -m pytest tests/ -v
 |素材类型|来源|版权归属|
 |---|---|---|
 |Note 贴图（Tap / Drag / Flick / Hold 等）|Phigros 游戏|南京鸽游网络有限公司（Pigeon Games）|
+|[字体文件](resources/fonts/phi.ttf)|思源黑体（Source Han Sans / Noto Sans CJK）|Adobe Systems Incorporated（依据 SIL Open Font License v1.1 授权）|
 |[示例谱面](resources/chart.json)|本项目内置|[@Temmie0125](https://github.com/Temmie0125)|
 |[示例曲绘](resources/ill.png)|网络|[@nanakaria](https://space.bilibili.com/12013555)|
+
+>关于字体：本字体依据 SIL Open Font License v1.1 协议分发，您可以在遵守该协议的前提下自由使用、修改与再分发。
 
 >注意：示例曲绘仅用于展示本项目渲染效果，请勿用于其他用途。如版权所有者认为不妥，请联系作者移除。
 

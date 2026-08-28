@@ -141,6 +141,8 @@ class NoteRenderInfo:
     local_end_beat: float | None = None
     line_index: int = -1
     chart: object | None = None
+    # Note 炸弹防御：False 时保留在统计/标注数据中，但不绘制实际贴图。
+    render_enabled: bool = True
 
     def __post_init__(self) -> None:
         # 保持手工构造 NoteRenderInfo 的旧调用方式兼容。

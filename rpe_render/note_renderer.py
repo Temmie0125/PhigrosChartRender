@@ -17,6 +17,7 @@ from .constants import (
     HOLD_END_HL_IMAGE,
     HOLD_END_IMAGE,
     NOTE_ICON_WIDTH,
+    NOTE_BOMB_RENDER_LIMIT,
     NOTE_IMAGE_MAP,
 )
 from .models import NoteData, NoteRenderInfo
@@ -178,6 +179,111 @@ def detect_multitap_groups_at_beats(notes_info: list[NoteRenderInfo]) -> set[int
     return multitap
 
 
+def _exact_render_signature(info: NoteRenderInfo) -> tuple:
+    """Return a conservative signature for a safely deduplicable Note.
+
+    The bomb defense must never use the fuzzy overlap threshold.  Non-Hold notes
+    are fully determined by their exact mapped start beat, rendered X and type.
+    A Hold also depends on its end and judge-line motion, so its source line,
+    position and mapped end beat are included; differing geometry is therefore
+    kept rather than accidentally hidden.
+    """
+    base = (info.beat, info.true_x, info.note.type)
+    if info.note.type != 2:
+        return base
+    return base + (
+        info.end_beat,
+        info.note.position_x,
+        info.line_index,
+    )
+
+
+def apply_note_bomb_defense(
+    notes_info: list[NoteRenderInfo],
+    limit: int = NOTE_BOMB_RENDER_LIMIT,
+) -> set[int]:
+    """Mark safely duplicated Notes that should not receive a sprite.
+
+    Notes remain in ``notes_info`` so combo/count/overlap labels use the full
+    chart.  Only exact duplicate groups are eligible.  A type with mixed
+    geometry is kept intact because dropping any member could hide real chart
+    content.  For safe duplicate groups, one member of every eligible type is
+    selected first, then remaining slots are filled in original order.
+
+    Returns the indices selected for actual rendering.
+    """
+    limit = max(1, int(limit))
+    locations: dict[tuple[float, float], dict[int, list[list[int]]]] = {}
+    signatures: dict[tuple[float, float, int, tuple], list[int]] = {}
+    for index, info in enumerate(notes_info):
+        info.render_enabled = True
+        # Intentionally use exact float equality: unlike quantity markers,
+        # this defense must not merge merely-nearby notes.
+        location = (info.beat, info.true_x)
+        signature = _exact_render_signature(info)
+        signature_key = (location[0], location[1], info.note.type, signature)
+        signatures.setdefault(signature_key, []).append(index)
+
+    for (beat, x, note_type, signature), members in signatures.items():
+        locations.setdefault((beat, x), {}).setdefault(note_type, []).append(members)
+
+    selected: set[int] = set(range(len(notes_info)))
+    for type_groups in locations.values():
+        safe_groups: list[tuple[int, list[int]]] = []
+        unsafe_indices: set[int] = set()
+        for note_type, groups in type_groups.items():
+            # A type is safe only when every Note at this location belongs to
+            # one identical geometry group.  Mixed Hold paths are not pruned.
+            flattened = [index for group in groups for index in group]
+            if len(groups) == 1 and len(groups[0]) >= 2:
+                safe_groups.append((note_type, groups[0]))
+            else:
+                unsafe_indices.update(flattened)
+        if not safe_groups:
+            continue
+
+        keep: set[int] = set(unsafe_indices)
+        remaining = max(0, limit - len(keep))
+        # First pass guarantees one representative for each Note type.
+        unsafe_types = {
+            note_type for note_type, groups in type_groups.items()
+            if any(index in unsafe_indices for group in groups for index in group)
+        }
+        ordered_groups = sorted(
+            safe_groups,
+            # If unsafe content already occupies slots, prefer types not yet
+            # represented before falling back to source order.
+            key=lambda item: (item[0] in unsafe_types, min(item[1])),
+        )
+        for _, members in ordered_groups:
+            if remaining <= 0:
+                break
+            keep.add(members[0])
+            remaining -= 1
+        # Fill remaining capacity round-robin, preserving source order within
+        # each type and avoiding a single type monopolising the quota.
+        offsets = {note_type: 1 for note_type, _ in ordered_groups}
+        while remaining > 0:
+            added = False
+            for note_type, members in ordered_groups:
+                offset = offsets[note_type]
+                if offset < len(members):
+                    keep.add(members[offset])
+                    offsets[note_type] = offset + 1
+                    remaining -= 1
+                    added = True
+                    if remaining <= 0:
+                        break
+            if not added:
+                break
+        for _, members in safe_groups:
+            for index in members:
+                if index not in keep:
+                    notes_info[index].render_enabled = False
+                    selected.discard(index)
+    return selected
+
+
 def place_notes_on_axes(
     ax: Axes,
     notes_info: list[NoteRenderInfo],
@@ -195,6 +301,8 @@ def place_notes_on_axes(
     """
     sorted_notes = sorted(notes_info, key=note_zorder_key)
     for z_idx, info in enumerate(sorted_notes):
+        if not info.render_enabled:
+            continue
         if info.note.type == 2:
             continue  # Hold 由 hold_renderer 渲染 Head/Body/End
 
@@ -236,6 +344,8 @@ def place_note_sprites_on_axes(
     """
     placements: list[SpritePlacement] = []
     for info in notes_info:
+        if not info.render_enabled:
+            continue
         if info.note.type == 2:
             continue
         placements.append(

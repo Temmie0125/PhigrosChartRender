@@ -466,7 +466,7 @@ def _affected_extent_in_column(
         n
         for seg in segments
         for n in seg.notes
-        if _note_covers_column(n, col_index)
+        if n.render_enabled and _note_covers_column(n, col_index)
     ]
     if not covers:
         return None
@@ -515,7 +515,7 @@ def render_affected_areas(
             n
             for seg in segments
             for n in seg.notes
-            if _note_covers_column(n, col_index)
+            if n.render_enabled and _note_covers_column(n, col_index)
         ]
         p_min = min(n.note.position_x for n in col_notes)
         area_x = _make_area_x(area_left, p_min, scale)
@@ -546,7 +546,7 @@ def render_affected_areas(
         jobs: list[tuple[float, int, Callable[[float], None]]] = []
         for seg in segments:
             for n in seg.notes:
-                if not _note_covers_column(n, col_index):
+                if not n.render_enabled or not _note_covers_column(n, col_index):
                     continue
                 if n.note.type == 2:
                     jobs.append(

@@ -165,6 +165,10 @@ COUNT_MARK_FONT_SIZE: float = 7.0
 
 # ==================== Note 开始时间重合标注 ====================
 
+# 同一时刻、同一位置且几何完全一致的重复 Note 最多实际绘制数量。
+# 仅用于防御完全重复的 Note 炸弹；数量统计与旁侧重合标注不受影响。
+NOTE_BOMB_RENDER_LIMIT: int = 4
+
 # 重合判定阈值（谱面原始 X 距离，游戏坐标单位）：同一开始时间的 Note 中，
 # 原始 X 距离 <= 阈值视为视觉重合；Hold 仅以头部参与判定
 NOTE_OVERLAP_THRESHOLD_X: float = 75.0

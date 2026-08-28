@@ -37,6 +37,7 @@ from .constants import (
     PREVIEW_BG_ALPHA,
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
+    NOTE_BOMB_RENDER_LIMIT,
     SIDE_MARKER_PADDING_PX,
     TRACK_BG_ALPHA,
 )
@@ -54,6 +55,7 @@ from .note_renderer import (
     NoteImageLoader,
     composite_note_sprites,
     detect_multitap_groups_at_beats,
+    apply_note_bomb_defense,
     note_zorder_key,
     place_note_sprites_on_axes,
 )
@@ -235,6 +237,9 @@ def render(config: RenderConfig) -> None:
     for index, info in enumerate(notes_info):
         info.is_multitap = index in multitap_set
 
+    # 仅标记可安全省略的完全重复 Note；统计、计数和数量标注仍使用完整列表。
+    apply_note_bomb_defense(notes_info, limit=NOTE_BOMB_RENDER_LIMIT)
+
     # 受影响段检测 → 受影响栏集合 → 各栏小区域宽度（真实间距占用）→ 分栏
     # （受影响栏右侧额外间距按区域宽度动态放大）
     segments = build_affected_segments(notes_info)
@@ -298,7 +303,9 @@ def render(config: RenderConfig) -> None:
     render_affected_boxes(ax, columns, segments, image_loader)
 
     # Hold 渲染（Body/轨迹在 Note 贴图下方）
-    hold_notes = [ni for ni in notes_info if ni.note.type == 2]
+    hold_notes = [
+        ni for ni in notes_info if ni.note.type == 2 and ni.render_enabled
+    ]
     judge_lines_dict = {line.name: line for line in chart.judge_line_list}
     hold_infos = prepare_hold_render_info(
         hold_notes,
