@@ -25,6 +25,16 @@ SIDE_MARKER_PADDING_PX: float = 64.0
 GAME_X_MIN: float = -675.0
 GAME_X_MAX: float = 675.0
 
+# 官谱横向坐标以画面宽度的 X 单位表示：1X = 0.05625W。
+# 在 1920px 参考画面中，完整画面横向范围为 ±960px（±8.888…X）；
+# 预览渲染器的 RPE 轨道范围为 ±675，因此官谱坐标需按比例缩放。
+OFFICIAL_REFERENCE_WIDTH_PX: float = 1920.0
+OFFICIAL_X_UNIT_PX: float = 0.05625 * OFFICIAL_REFERENCE_WIDTH_PX
+OFFICIAL_X_MAX_UNITS: float = (
+    OFFICIAL_REFERENCE_WIDTH_PX / 2.0 / OFFICIAL_X_UNIT_PX
+)
+OFFICIAL_TO_RPE_X_SCALE: float = GAME_X_MAX / OFFICIAL_X_MAX_UNITS
+
 # Note 图标渲染宽度（px）
 NOTE_ICON_WIDTH: int = 54
 

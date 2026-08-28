@@ -31,7 +31,7 @@ class MetaData:
     chart_id: str
     level: str
     name: str
-    offset: int
+    offset: float
     song: str
     illustration: str = ""  # 可选，曲绘画师
     duration: float = 0.0  # 可选，谱面时长（秒）
@@ -89,6 +89,9 @@ class NoteData:
     position_x: float  # 相对于判定线的 X 落点
     raw_start_time: list[int] = field(default_factory=list)  # 原始 TimeT，用于多押精确比较
     raw_end_time: list[int] = field(default_factory=list)
+    # 官谱额外字段（RPE 谱面保持默认值）
+    speed: float = 1.0
+    floor_position: float = 0.0
 
 
 @dataclass
@@ -106,6 +109,8 @@ class JudgeLineData:
     event_layers: list[EventLayer]  # 固定 4 个层级
     # RPE 文档规定：未指定时父线角度不继承到子线。
     rotate_with_father: bool = False
+    # 官谱每条线有独立 BPM；RPE 谱面此值为 0。
+    bpm: float = 0.0
 
 
 @dataclass
@@ -116,6 +121,9 @@ class ChartData:
     meta: MetaData
     judge_line_group: list[str]
     judge_line_list: list[JudgeLineData]
+    # 解析来源。官谱会自动启用分音拟合。
+    is_official: bool = False
+    format_version: int = 0
 
 
 # ==================== 渲染中间数据类 ====================

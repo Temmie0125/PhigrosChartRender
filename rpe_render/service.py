@@ -36,6 +36,10 @@ def render_source(
         raise ValueError("output_format must be 'png' or 'jpg'")
     with load_chart_input(source) as chart_input:
         background = Path(background_path) if background_path else chart_input.background_path
+        # 谱面包（尤其官谱）可能没有 META；info.txt 元数据作为默认值，
+        # 调用方显式传入的 metadata 覆盖包内值。
+        effective_metadata = dict(chart_input.metadata)
+        effective_metadata.update(metadata or {})
         with tempfile.TemporaryDirectory(prefix="rpe-render-") as output_dir:
             output = Path(output_dir) / f"preview.{normalized_format}"
             render(
@@ -48,7 +52,7 @@ def render_source(
                     dpi=dpi,
                     preview_bg_alpha=preview_bg_alpha,
                     track_bg_alpha=track_bg_alpha,
-                    metadata=metadata,
+                    metadata=effective_metadata,
                     background_blur_sigma=background_blur_sigma,
                     background_brightness=background_brightness,
                     fit_official_divisions=fit_official_divisions,

@@ -1,4 +1,4 @@
-"""RPE JSON 谱面文件的读取、验证与解析为内部数据模型。"""
+"""RPE 与官谱 JSON 的读取、格式检测及内部数据模型转换。"""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from .models import (
     NoteData,
 )
 from .time_utils import timet_to_beats
+from .constants import GAME_X_MAX, OFFICIAL_TO_RPE_X_SCALE
 
 logger = logging.getLogger("rpe_render")
 
@@ -46,11 +47,23 @@ def parse_chart(file_path: str | Path) -> ChartData:
     if not path.is_file():
         raise FileNotFoundError(f"Chart file not found: {path}")
 
+    # 先按标准 JSON 读取以识别格式；官谱再按其运行时约定保留重复键的
+    # 首次出现值。RPE 继续使用 Python/JSON 的标准“后者覆盖前者”语义。
     with open(path, "r", encoding="utf-8") as fp:
-        raw = json.load(fp)
+        text = fp.read()
+    raw = json.loads(text)
 
     if not isinstance(raw, dict):
         raise ValueError("Top-level JSON must be an object")
+
+    if _is_official_chart(raw):
+        raw = json.loads(text, object_pairs_hook=_first_key_object)
+        chart = _parse_official_chart(raw)
+        logger.info(
+            "Parsed official chart: %d judge lines (formatVersion=%d)",
+            len(chart.judge_line_list), chart.format_version,
+        )
+        return chart
 
     # ---- 顶层结构验证 ----
     for required in ("BPMList", "META", "judgeLineList"):
@@ -78,6 +91,223 @@ def parse_chart(file_path: str | Path) -> ChartData:
         meta=meta,
         judge_line_group=judge_line_group,
         judge_line_list=judge_line_list,
+    )
+
+
+def _first_key_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """构造 JSON 对象时保留重复键的第一个值（官谱约定）。"""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key not in result:
+            result[key] = value
+    return result
+
+
+def _is_official_chart(raw: dict) -> bool:
+    """根据结构自动识别官谱 JSON。"""
+    if "BPMList" in raw or "META" in raw:
+        return False
+    lines = raw.get("judgeLineList")
+    if not isinstance(lines, list):
+        return False
+    if "formatVersion" in raw or "formatversion" in raw:
+        return True
+    return any(
+        isinstance(line, dict)
+        and ("notesAbove" in line or "notesBelow" in line or "speedEvents" in line)
+        for line in lines
+    )
+
+
+def _official_number(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _official_time(value: object) -> int:
+    """官谱时间按 int 读取；非整数值按运行时的截断规则处理。"""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _official_time_repr(units: int) -> list[int]:
+    """将官谱 T 单位转换为内部可精确表示的 TimeT（1/32 拍）。"""
+    integer, remainder = divmod(int(units), 32)
+    return [integer, remainder, 32]
+
+
+def _official_position_x(value: object) -> float:
+    """将官谱 Note.positionX（X 单位）比例映射到 RPE 游戏坐标。"""
+    return _official_number(value) * OFFICIAL_TO_RPE_X_SCALE
+
+
+def _official_coord(value: object, *, axis: str, format_version: int) -> float:
+    """转换官谱判定线坐标到渲染器的 [-675, 675] 游戏坐标。"""
+    raw = _official_number(value)
+    if format_version not in (1, 3):
+        # 其它版本以画面中心为原点，单位为 0.1H（约 108px）。
+        return raw * 108.0
+    if format_version == 1:
+        span = 880.0 if axis == "x" else 520.0
+        raw = raw / span if span else 0.0
+    # formatVersion=3 使用左下角归一化坐标；渲染器以中心为原点。
+    if format_version == 3:
+        raw -= 0.5
+    else:
+        raw -= 0.5
+    return raw * (2.0 * GAME_X_MAX)
+
+
+def _official_event(
+    raw: dict,
+    *,
+    format_version: int,
+    kind: str,
+) -> EventData:
+    start_t = _official_time(raw.get("startTime", 0))
+    end_t = _official_time(raw.get("endTime", start_t))
+    start_repr = _official_time_repr(start_t)
+    end_repr = _official_time_repr(end_t)
+    start = _official_number(raw.get("start", raw.get("value", 0.0)))
+    end = _official_number(raw.get("end", raw.get("value", start)))
+    if kind == "move":
+        if format_version == 1:
+            start = int(start) // 1000
+            end = int(end) // 1000
+        start = _official_coord(start, axis="x", format_version=format_version)
+        end = _official_coord(end, axis="x", format_version=format_version)
+    elif kind == "move_y":
+        if format_version == 1:
+            start = _official_number(int(start) % 1000)
+            end = _official_number(int(end) % 1000)
+        else:
+            start = _official_number(raw.get("start2", 0.0))
+            end = _official_number(raw.get("end2", 0.0))
+        start = _official_coord(start, axis="y", format_version=format_version)
+        end = _official_coord(end, axis="y", format_version=format_version)
+    elif kind == "speed":
+        # 速度事件的 value 单位为 Y/s；当前渲染时间轴只需保留事件数据。
+        start = end = _official_number(raw.get("value", 0.0))
+    event = EventData(
+        bezier=False,
+        bezier_points=[0.0, 0.0, 0.0, 0.0],
+        easing_left=0.0,
+        easing_right=1.0,
+        easing_type=1,
+        start=start,
+        end=end,
+        start_time=start_repr,
+        end_time=end_repr,
+        linkgroup=0,
+    )
+    # EventData 的拍数由 TimeT 计算，恰好等于 T/32。
+    return event
+
+
+def _parse_official_chart(raw: dict) -> ChartData:
+    format_version = int(raw.get("formatVersion", raw.get("formatversion", 0)) or 0)
+    raw_lines = raw.get("judgeLineList")
+    if not isinstance(raw_lines, list):
+        raise ValueError("Official chart judgeLineList must be an array")
+
+    # 以首条有效判定线 BPM 作为统一显示时间轴基准；各线通过 bpm_factor
+    # 映射到真实秒时刻，避免不同 BPM 线的 Note 错位。
+    line_bpms = [
+        _official_number(item.get("bpm"), 0.0)
+        for item in raw_lines
+        if isinstance(item, dict) and _official_number(item.get("bpm"), 0.0) > 0
+    ]
+    base_bpm = line_bpms[0] if line_bpms else 120.0
+    lines: list[JudgeLineData] = []
+    for index, item in enumerate(raw_lines):
+        if not isinstance(item, dict):
+            item = {}
+        bpm = _official_number(item.get("bpm"), base_bpm)
+        if bpm <= 0:
+            bpm = base_bpm
+        notes: list[NoteData] = []
+        for collection in (item.get("notesAbove", []), item.get("notesBelow", [])):
+            if not isinstance(collection, list):
+                continue
+            for raw_note in collection:
+                if not isinstance(raw_note, dict):
+                    continue
+                official_type = int(_official_number(raw_note.get("type"), 0))
+                if official_type not in (1, 2, 3, 4):
+                    continue  # 官谱其它类型表现为不可见、不可判定
+                # 官谱: 1 Tap, 2 Drag, 3 Hold, 4 Flick；映射到 RPE 内部编号。
+                note_type = {1: 1, 2: 4, 3: 2, 4: 3}[official_type]
+                time_t = _official_time(raw_note.get("time", 0))
+                hold_t = _official_time(raw_note.get("holdTime", 0))
+                end_t = time_t + hold_t if note_type == 2 else time_t
+                notes.append(
+                    NoteData(
+                        type=note_type,
+                        start_time_beat=time_t / 32.0,
+                        end_time_beat=end_t / 32.0,
+                        position_x=_official_position_x(raw_note.get("positionX", 0.0)),
+                        raw_start_time=_official_time_repr(time_t),
+                        raw_end_time=_official_time_repr(end_t),
+                        speed=_official_number(raw_note.get("speed", 1.0), 1.0),
+                        floor_position=_official_number(raw_note.get("floorPosition", 0.0)),
+                    )
+                )
+
+        move_raw = item.get("judgeLineMoveEvents") or []
+        rotate_raw = item.get("judgeLineRotateEvents") or []
+        alpha_raw = item.get("judgeLineDisappearEvents") or []
+        speed_raw = item.get("speedEvents") or []
+        move_events = [_official_event(e, format_version=format_version, kind="move") for e in move_raw if isinstance(e, dict)]
+        move_y_events = [_official_event(e, format_version=format_version, kind="move_y") for e in move_raw if isinstance(e, dict)]
+        rotate_events = [_official_event(e, format_version=format_version, kind="rotate") for e in rotate_raw if isinstance(e, dict)]
+        alpha_events = [_official_event(e, format_version=format_version, kind="alpha") for e in alpha_raw if isinstance(e, dict)]
+        speed_events = [_official_event(e, format_version=format_version, kind="speed") for e in speed_raw if isinstance(e, dict)]
+        move_x_events = sorted(move_events, key=lambda e: e.start_beat)
+        layer = EventLayer(
+            move_x_events=move_x_events,
+            move_y_events=sorted(move_y_events, key=lambda e: e.start_beat),
+            rotate_events=sorted(rotate_events, key=lambda e: e.start_beat),
+            alpha_events=sorted(alpha_events, key=lambda e: e.start_beat),
+            speed_events=sorted(speed_events, key=lambda e: e.start_beat),
+        )
+        lines.append(
+            JudgeLineData(
+                name=str(item.get("name", item.get("Name", f"Line {index}"))),
+                group=0,
+                texture="",
+                father=-1,
+                z_order=0,
+                is_cover=False,
+                bpm_factor=base_bpm / bpm,
+                notes=notes,
+                event_layers=[layer, EventLayer(), EventLayer(), EventLayer()],
+                bpm=bpm,
+            )
+        )
+
+    meta_raw = raw.get("META") if isinstance(raw.get("META"), dict) else {}
+    meta = MetaData(
+        rpe_version=0,
+        background=str(meta_raw.get("background", "")),
+        charter=str(meta_raw.get("charter", "")),
+        composer=str(meta_raw.get("composer", "")),
+        chart_id=str(meta_raw.get("id", "")),
+        level=str(meta_raw.get("level", "")),
+        name=str(meta_raw.get("name", "")),
+        offset=_official_number(raw.get("offset", 0.0)),
+        song=str(meta_raw.get("song", "")),
+    )
+    return ChartData(
+        bpm_list=[BPMEvent(base_bpm, [0, 0, 1])],
+        meta=meta,
+        judge_line_group=[],
+        judge_line_list=lines,
+        is_official=True,
+        format_version=format_version,
     )
 
 

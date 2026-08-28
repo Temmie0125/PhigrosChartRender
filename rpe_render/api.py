@@ -282,11 +282,18 @@ async def read_chart_metadata(file: UploadFile = File(...)) -> ChartMetadataResp
                 dst.write(chunk)
         with load_chart_input(source, strict_picture=False) as chart_input:
             meta = parse_chart(chart_input.chart_path).meta
+            # 官谱包通常没有 META；谱面包加载器已从 info.txt 提取默认值。
+            # JSON META（若存在）优先于 info.txt，空字段再回退到包内信息。
+            package_metadata = chart_input.metadata
+            name = meta.name or package_metadata.get("name", "")
+            charter = meta.charter or package_metadata.get("charter", "")
+            level = meta.level or package_metadata.get("level", "")
+            composer = meta.composer or package_metadata.get("composer", "")
         return ChartMetadataResponse(
-            name=meta.name,
-            charter=meta.charter,
-            level=meta.level,
-            composer=meta.composer,
+            name=name,
+            charter=charter,
+            level=level,
+            composer=composer,
         )
     except HTTPException:
         raise

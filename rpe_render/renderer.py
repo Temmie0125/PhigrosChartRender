@@ -182,7 +182,8 @@ def render(config: RenderConfig) -> None:
     """
     # ===== Phase 1: 解析 =====
     chart = parse_chart(config.chart_path)
-    if config.fit_official_divisions:
+    # 官谱的特殊分音是格式固有特征，检测到后自动拟合；RPE 仍遵循显式开关。
+    if config.fit_official_divisions or chart.is_official:
         from .division_fit import fit_official_divisions
 
         changed = fit_official_divisions(chart)

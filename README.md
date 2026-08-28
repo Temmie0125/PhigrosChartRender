@@ -1,6 +1,6 @@
 # RPE 谱面配置预览图生成器
 
-输入 RPE（Re:PhiEdit）谱面 JSON、PEZ 或 ZIP 谱面包，输出纵向时间轴式的谱面预览图。
+输入 RPE（Re:PhiEdit）/ 官谱谱面 JSON、PEZ 或 ZIP 谱面包，输出纵向时间轴式的谱面预览图。
 所有判定线的音符会映射到统一主时间轴，直观展示音符分布、密度变化、多押情况与 Hold 轨迹。
 
 效果预览：
@@ -16,7 +16,7 @@
 - **轨道加深**：每条 Note 轨道（栏内竖直区域，不含轨道间隔栏）叠加可配置透明度的加深底色，提高相邻轨道区分度
 - **位置重合标注**：同一开始时间的 Note 中，谱面原始 X 距离 ≤ 阈值（默认 75）的组，在其旁边标注 "×n"（Hold 仅以头部参与）
 - **Note 炸弹防御**：同一时刻、同一位置且几何完全一致的重复 Note 默认最多实际绘制 4 个，并优先覆盖四种 Note 类型；统计、Combo 与数量标注仍使用完整 Note 列表
-- **官谱分音拟合（实验性）**：默认关闭；可将官谱转换产生的 10/20/24 等非 2 的整数次幂近似分音拟合到规则时间位置，Drag/Flick 不参与
+- **官谱 JSON 适配**：自动识别官谱格式，支持每条判定线独立 BPM、官谱 Note 类型与事件；官谱坐标会按比例映射到 RPE 轨道坐标系，并自动启用分音拟合
 - **底部信息栏**：曲名、时长、难度、曲师、谱师、BPM 范围（最低~最高）与四类 Note 统计（按类型着色），双边框卡片样式，背景与主区共用整图模糊曲绘
 - **可选背景与格式**：曲绘高斯模糊（σ=15）作为整体背景；不指定背景时 PNG 输出透明底，也可输出 JPG 以减小文件体积
 - **Web UI 元数据编辑**：加载谱面后可编辑谱面名称、谱师、难度、曲师，修改只作用于当前渲染任务
@@ -48,7 +48,7 @@ python -m rpe_render chart.json --background art.png -o output.png
 # JPG 输出（文件体积更小）
 python -m rpe_render chart.json --background art.png -o output.jpg --format jpg
 
-# 开启实验性官谱分音拟合（默认关闭）
+# 对 RPE 谱面显式开启实验性官谱分音拟合（官谱会自动启用）
 python -m rpe_render chart.json --fit-official-divisions
 
 # 常用参数组合
@@ -69,13 +69,16 @@ python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
 | `--track-bg-alpha` | 每条 Note 轨道区域额外加深透明度（0.0 关闭 ~ 1.0） | 0.75 |
 | `--fit-official-divisions` | 启用官谱分音拟合（实验性，仅 Tap/Hold） | 关闭 |
 
-输入为 PEZ/ZIP 时，程序会安全解包并根据 `info.txt` 或谱面 `META.background`
-定位曲绘；不会修改原始压缩包。输出目录只写入最终图片。
+输入为 PEZ/ZIP 时，程序会安全解包并定位曲绘；不会修改原始压缩包。
+谱面包信息文件按以下顺序回退：`info.txt` → 与谱面 JSON 同名的 `.txt` → 包内唯一 `.txt`。
+其中 `Name`、`Level`、`Composer`、`Charter` 会作为底部信息栏默认元数据，显式指定的元数据优先。
+官谱包没有资源声明时，曲绘优先使用包内唯一 PNG/JPG/JPEG，再回退到信息文件中的 `Picture:`。
 
-> **关于官谱分音拟合：**
-> 官谱只支持 2 的整数次幂分音，12、20、24 等特殊分音通常由密集 Note 近似产生（例如 11/32、21/32 交错）。开启本功能后会根据连续 Note 间隔尝试拟合到目标分音。可能会改变 Note 位置，仅推荐用于直接从官谱转换来的 RPE 谱面。
-> RPE JSON**原生支持**任意分音，无需开启此选项。
+> **关于官谱适配与分音拟合：**
+> 官谱 JSON 的时间单位为各判定线 BPM 下的 1/32 拍，Note type 顺序为 Tap/Drag/Hold/Flick，且不同判定线可以使用不同 BPM。渲染器会将这些时间统一映射到主时间轴，并将官谱横向坐标按比例映射到 RPE 的 `[-675, 675]` 范围。
+> 官谱只支持 2 的整数次幂分音，12、20、24 等特殊分音通常由密集 Note 近似产生。官谱检测到后会自动执行拟合；RPE JSON 仍需通过 `--fit-official-divisions` 显式开启。
 
+> RPE JSON**原生支持**任意分音，**通常无需开启**此选项。如果你的RPE JSON**由官谱转换而来**或者**确认需要**开启，请注意：
 > 官谱拟合会以至少 3 个连续间隔为候选序列，并以 1/16 拍作为最大允许误差；
 > 精确的 16/32/64 等原生分音会作为边界，避免不同节奏段互相吸附。该功能属于实验性启发式算法，
 > 开启后应检查关键段落的渲染结果。
@@ -161,8 +164,8 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 `background_blur_sigma`、`background_brightness` 与 `fit_official_divisions`；这些参数属于高级设置，
 通常应保持默认值。
 
-`FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可显式开启实验性的官谱分音拟合，
-默认关闭；它只调整 Tap/Hold 起始时间，Drag/Flick 不参与拟合。
+`FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可为 RPE 谱面显式开启实验性的分音拟合，
+默认关闭；官谱检测到后会自动开启。它只调整 Tap/Hold 起始时间，Drag/Flick 不参与拟合。
 
 ### API 请求字段
 
@@ -199,10 +202,13 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 ### 谱面包规则
 
 - 支持 `.pez`、`.zip` 和 `.json`。
-- 根目录只有一个 JSON 时直接使用；多个 JSON 时必须由 `info.txt` 的 `Chart:` 声明。
-- 曲绘优先读取 JSON 的 `META.background`，其次读取 `info.txt` 的 `Picture:`。
+- 根目录只有一个 JSON 时直接使用；多个 JSON 时必须由信息文件的 `Chart:` 声明。
+- 信息文件按 `info.txt` → 与谱面 JSON 同名的 `.txt` → 包内唯一 `.txt` 回退选择。
+- `Name`、`Level`、`Composer`、`Charter` 用于补充官谱缺失的 JSON `META`；JSON 中非空字段优先。
+- RPE 曲绘优先读取 JSON 的 `META.background`，其次读取信息文件的 `Picture:`。
+- 官谱没有资源声明时，优先使用包内唯一 PNG/JPG/JPEG 图片，其次使用信息文件的 `Picture:`。
 - 声明的曲绘不存在或不是 PNG/JPG/JPEG 时返回“未找到曲绘”。
-- 声明路径区分大小写，允许空格，禁止系统保留字符和目录穿越。
+- 声明路径**区分大小写**，**允许空格**，**禁止系统保留字符**和**目录穿越**。
 
 ### 前端
 
@@ -272,7 +278,7 @@ docker compose up --build
 JSON / PEZ / ZIP
       │
       ▼
-安全加载与谱面解析 ──► (可选) 官谱分音拟合
+安全加载与谱面解析 ──► 官谱自动适配/分音拟合（RPE 可选开启）
       │
       ▼
 统一主时间轴与判定线姿态计算
@@ -297,7 +303,7 @@ JSON / PEZ / ZIP
 | BPM 因数 | `displayBeat = localBeat × bpmfactor`，Note、Hold、轨迹、标记和重合判断统一使用映射后的主谱面时间 |
 | 忽略字段 | `above`/`yOffset`/`size`/`speed`/判定线视觉属性/extended 事件不参与预览 |
 | isFake 音符 | 过滤不渲染 |
-| 官谱分音拟合 | 仅显式开启时执行；以连续高密度 Tap/Hold 起始时间推断非 2 次幂分音，误差上限 1/16 拍；精确原生分音作为边界 |
+| 官谱分音拟合 | 官谱自动执行，RPE 仅显式开启；以连续高密度 Tap/Hold 起始时间推断非 2 次幂分音，误差上限 1/16 拍；精确原生分音作为边界 |
 
 ## 测试
 

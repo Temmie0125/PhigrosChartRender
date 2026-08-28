@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import zipfile
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
@@ -25,8 +25,21 @@ class MissingPictureError(ChartPackageError):
     """A declared illustration cannot be found or is unsupported."""
 
 
-_INFO_KEYS = {"Chart", "Picture"}
-_DIRECTIVE_RE = re.compile(r"^\s*(Chart|Picture)\s*:\s*(.*?)\s*$")
+_INFO_KEYS = {
+    "Chart",
+    "Picture",
+    "Name",
+    "Path",
+    "Song",
+    "Level",
+    "Composer",
+    "Illustrator",
+    "Charter",
+}
+_DIRECTIVE_RE = re.compile(
+    r"^\s*(Chart|Picture|Name|Path|Song|Level|Composer|Illustrator|Charter)"
+    r"\s*:\s*(.*?)\s*$"
+)
 _FORBIDDEN_CHARS = set('<>:"/\\|?*')
 _RESERVED_NAMES = {
     "CON",
@@ -45,6 +58,7 @@ _MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 class ChartInput:
     chart_path: Path
     background_path: Path | None
+    metadata: dict[str, str] = field(default_factory=dict)
     _temporary_root: Path | None = None
 
     def cleanup(self) -> None:
@@ -109,7 +123,42 @@ def _read_meta_background(chart_path: Path) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def _resolve_picture(root: Path, chart_path: Path, info: dict[str, str], *, strict: bool) -> Path | None:
+def _is_official_chart(chart_path: Path) -> bool:
+    """轻量识别官谱结构，供谱面包资源解析使用。"""
+    try:
+        raw = json.loads(chart_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(raw, dict) or "BPMList" in raw or "META" in raw:
+        return False
+    if "formatVersion" in raw or "formatversion" in raw:
+        return True
+    lines = raw.get("judgeLineList")
+    return isinstance(lines, list) and any(
+        isinstance(line, dict)
+        and ("notesAbove" in line or "notesBelow" in line)
+        for line in lines
+    )
+
+
+def _resolve_picture(
+    root: Path,
+    chart_path: Path,
+    info: dict[str, str],
+    *,
+    strict: bool,
+    allow_official_unique: bool = False,
+) -> Path | None:
+    official = _is_official_chart(chart_path)
+    # 官谱没有资源声明：若包体内只有一个可用图片资源，优先使用它；
+    # 否则再回退到 info.txt 的 Picture 指定。
+    if official and allow_official_unique:
+        pictures = sorted(
+            p for p in root.rglob("*")
+            if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg"}
+        )
+        if len(pictures) == 1:
+            return pictures[0]
     declared = _read_meta_background(chart_path) or info.get("Picture")
     if not declared:
         if strict:
@@ -133,10 +182,43 @@ def _resolve_picture(root: Path, chart_path: Path, info: dict[str, str], *, stri
     return picture
 
 
-def _build_input(root: Path, *, strict_picture: bool) -> ChartInput:
-    info_path = root / "info.txt"
-    info = _read_info(info_path) if info_path.is_file() else {}
+def _select_info_file(
+    root: Path,
+    json_files: list[Path],
+    source_stem: str | None = None,
+) -> Path | None:
+    """按优先级选择谱面包信息文件。
+
+    官谱包的约定并不统一：优先使用根目录 ``info.txt``，其次查找与
+    谱面 JSON 同名的 ``.txt``，最后仅在包内恰好只有一个 txt 时使用它。
+    """
+    preferred = root / "info.txt"
+    if preferred.is_file():
+        return preferred
+
+    chart_stems = {path.stem for path in json_files}
+    if source_stem:
+        chart_stems.add(source_stem)
+    txt_files = sorted(
+        path for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() == ".txt"
+    )
+    same_name = [path for path in txt_files if path.stem in chart_stems]
+    if len(same_name) == 1:
+        return same_name[0]
+
+    return txt_files[0] if len(txt_files) == 1 else None
+
+
+def _build_input(
+    root: Path,
+    *,
+    strict_picture: bool,
+    source_stem: str | None = None,
+) -> ChartInput:
     json_files = sorted(p for p in root.iterdir() if p.is_file() and p.suffix == ".json")
+    info_path = _select_info_file(root, json_files, source_stem)
+    info = _read_info(info_path) if info_path is not None else {}
     chart_name = info.get("Chart") if len(json_files) != 1 else json_files[0].name
     if not chart_name:
         raise PackageFormatError("谱面包格式错误：根目录存在多个 JSON 但缺少 Chart 声明")
@@ -147,8 +229,25 @@ def _build_input(root: Path, *, strict_picture: bool) -> ChartInput:
     chart_path = root / chart_rel
     if not chart_path.is_file() or chart_path.suffix != ".json":
         raise PackageFormatError("谱面包格式错误：未找到声明的谱面 JSON")
-    background = _resolve_picture(root, chart_path, info, strict=strict_picture)
-    return ChartInput(chart_path, background)
+    background = _resolve_picture(
+        root,
+        chart_path,
+        info,
+        strict=strict_picture,
+        allow_official_unique=True,
+    )
+    # 官谱 JSON 通常不含 META；info.txt 是谱面包的元数据来源。
+    metadata = {
+        target: info[source]
+        for target, source in {
+            "name": "Name",
+            "level": "Level",
+            "composer": "Composer",
+            "charter": "Charter",
+        }.items()
+        if info.get(source)
+    }
+    return ChartInput(chart_path, background, metadata)
 
 
 def _extract_zip(source: Path, destination: Path) -> None:
@@ -197,7 +296,11 @@ def load_chart_input(source: str | Path, *, strict_picture: bool = True) -> Iter
     temporary_root = Path(tempfile.mkdtemp(prefix="rpe-chart-"))
     try:
         _extract_zip(path, temporary_root)
-        result = _build_input(temporary_root, strict_picture=strict_picture)
+        result = _build_input(
+            temporary_root,
+            strict_picture=strict_picture,
+            source_stem=path.stem,
+        )
         result._temporary_root = temporary_root
         yield result
     except Exception:

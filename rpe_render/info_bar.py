@@ -26,6 +26,7 @@ from .constants import (
 from .fonts import configure_cjk_font, get_font
 from .models import ChartData, NoteCountStats, NoteData
 from .time_utils import timet_to_beats
+from .timeline import map_line_beat
 
 logger = logging.getLogger("rpe_render")
 
@@ -93,8 +94,11 @@ def compute_duration_seconds(chart: ChartData) -> float:
     max_end_beat = 0.0
     for line in chart.judge_line_list:
         for note in line.notes:
-            if note.end_time_beat > max_end_beat:
-                max_end_beat = note.end_time_beat
+            # 官谱各判定线可有独立 BPM；统一时间轴上的结束拍数必须
+            # 经过该线的 bpm_factor 映射。
+            display_end = map_line_beat(line, note.end_time_beat)
+            if display_end > max_end_beat:
+                max_end_beat = display_end
 
     if max_end_beat <= 0 and chart.bpm_list:
         max_end_beat = timet_to_beats(tuple(chart.bpm_list[-1].start_time))
@@ -111,7 +115,11 @@ def format_duration(seconds: float) -> str:
 
 
 def compute_bpm_range(chart: ChartData) -> tuple[float, float]:
-    """统计谱面 BPM 范围：BPMList 中的最低与最高 BPM。"""
+    """统计谱面 BPM 范围；官谱按各判定线 BPM 统计。"""
+    if chart.is_official:
+        line_values = [line.bpm for line in chart.judge_line_list if line.bpm > 0]
+        if line_values:
+            return min(line_values), max(line_values)
     if not chart.bpm_list:
         return 0.0, 0.0
     values = [event.bpm for event in chart.bpm_list]
