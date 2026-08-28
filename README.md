@@ -1,7 +1,7 @@
 # RPE 谱面配置预览图生成器
 
-输入 RPE（Re:PhiEdit）谱面 JSON 文件，输出一张纵向时间轴式的谱面配置预览 PNG。
-所有判定线的音符合并到统一时间轴上，直观展示音符分布、密度变化、多押情况与 Hold 轨迹。
+输入 RPE（Re:PhiEdit）谱面 JSON、PEZ 或 ZIP 谱面包，输出纵向时间轴式的谱面预览图。
+所有判定线的音符会映射到统一主时间轴，直观展示音符分布、密度变化、多押情况与 Hold 轨迹。
 
 效果预览：
 ![效果图](/resources/example.png "示例谱面预览效果图")
@@ -15,8 +15,11 @@
 - **时间轴标记**：拍线/小节线灰色网格、拍号、BPM 变化、Note 时值间隔标记、每 4 拍累计计数（白色标记文字）
 - **轨道加深**：每条 Note 轨道（栏内竖直区域，不含轨道间隔栏）叠加可配置透明度的加深底色，提高相邻轨道区分度
 - **位置重合标注**：同一开始时间的 Note 中，谱面原始 X 距离 ≤ 阈值（默认 75）的组，在其旁边标注 "×n"（Hold 仅以头部参与）
+- **Note 炸弹防御**：同一时刻、同一位置且几何完全一致的重复 Note 默认最多实际绘制 4 个，并优先覆盖四种 Note 类型；统计、Combo 与数量标注仍使用完整 Note 列表
+- **官谱分音拟合（实验性）**：默认关闭；可将官谱转换产生的 10/20/24 等非 2 的整数次幂近似分音拟合到规则时间位置，Drag/Flick 不参与
 - **底部信息栏**：曲名、时长、难度、曲师、谱师、BPM 范围（最低~最高）与四类 Note 统计（按类型着色），双边框卡片样式，背景与主区共用整图模糊曲绘
-- **可选背景**：曲绘高斯模糊（σ=15）作为整体背景，不指定则输出透明底 PNG；也可选择 JPG 输出以减小文件体积
+- **可选背景与格式**：曲绘高斯模糊（σ=15）作为整体背景；不指定背景时 PNG 输出透明底，也可输出 JPG 以减小文件体积
+- **Web UI 元数据编辑**：加载谱面后可编辑谱面名称、谱师、难度、曲师，修改只作用于当前渲染任务
 - **预览区底色**：谱面预览区叠加可配置透明度的半透明黑色底色，压暗背景突出白色标记与 Note
 - **自定义字体**：所有渲染文字（拍号/BPM/时值/计数/信息栏）统一使用可配置的主字体（默认 `resources/fonts/phi.ttf`），信息栏中文在字体缺字时按字形回退到系统 CJK 字体
 - **配置文件**：所有渲染参数可通过 `render_config.json` 覆盖默认值，无需修改代码
@@ -27,6 +30,7 @@
 - matplotlib ≥ 3.7.0
 - numpy ≥ 1.24.0
 - Pillow ≥ 10.0.0
+- Node.js ≥ 18（仅运行 Web UI 时需要）
 
 ```bash
 pip install -r requirements.txt
@@ -35,29 +39,46 @@ pip install -r requirements.txt
 ## 使用方法
 
 ```bash
-# 基本用法
+# JSON、PEZ、ZIP 均可直接作为输入
 python -m rpe_render chart.json
+python -m rpe_render chart.pez
 
 # 指定背景曲绘与输出路径
 python -m rpe_render chart.json --background art.png -o output.png
 # JPG 输出（文件体积更小）
 python -m rpe_render chart.json --background art.png -o output.jpg --format jpg
 
-# 全部参数
-python -m rpe_render chart.json --bg art.png -o out.png --dpi 300 --notes-dir resources/notes --preview-bg-alpha 0.4 --track-bg-alpha 0.75 --config render_config.json
+# 开启实验性官谱分音拟合（默认关闭）
+python -m rpe_render chart.json --fit-official-divisions
+
+# 常用参数组合
+python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
+  --preview-bg-alpha 0.4 --track-bg-alpha 0.75 --config render_config.json
 ```
 
 | 参数 | 说明 | 默认值 |
 |---|---|---|
-| `chart` | RPE JSON 谱面文件路径（必填） | - |
+| `chart` | RPE JSON、PEZ 或 ZIP 谱面文件路径（必填） | - |
 | `--config` | 配置文件路径（JSON，覆盖 constants 默认值） | 当前目录下 `render_config.json` |
 | `--background` / `--bg` | 背景曲绘图片路径 | 无（透明背景） |
 | `-o` / `--output` | 输出图片路径 | `output.png` |
-| `--format` | 输出格式：`png` / `jpg`；省略时按输出扩展名推断 | - |
+| `--format` | 输出格式：`png` / `jpg`；省略时按输出扩展名推断 | 按扩展名推断 |
 | `--dpi` | 输出 DPI | 150 |
 | `--notes-dir` | Note 贴图目录 | `resources/notes` |
 | `--preview-bg-alpha` | 谱面预览区半透明黑色底色透明度（0.0 关闭 ~ 1.0） | 0.55 |
 | `--track-bg-alpha` | 每条 Note 轨道区域额外加深透明度（0.0 关闭 ~ 1.0） | 0.75 |
+| `--fit-official-divisions` | 启用官谱分音拟合（实验性，仅 Tap/Hold） | 关闭 |
+
+输入为 PEZ/ZIP 时，程序会安全解包并根据 `info.txt` 或谱面 `META.background`
+定位曲绘；不会修改原始压缩包。输出目录只写入最终图片。
+
+> **关于官谱分音拟合：**
+> 官谱只支持 2 的整数次幂分音，12、20、24 等特殊分音通常由密集 Note 近似产生（例如 11/32、21/32 交错）。开启本功能后会根据连续 Note 间隔尝试拟合到目标分音。可能会改变 Note 位置，仅推荐用于直接从官谱转换来的 RPE 谱面。
+> RPE JSON**原生支持**任意分音，无需开启此选项。
+
+> 官谱拟合会以至少 3 个连续间隔为候选序列，并以 1/16 拍作为最大允许误差；
+> 精确的 16/32/64 等原生分音会作为边界，避免不同节奏段互相吸附。该功能属于实验性启发式算法，
+> 开启后应检查关键段落的渲染结果。
 
 ### 配置文件
 
@@ -75,6 +96,7 @@ python -m rpe_render chart.json --config my_settings.json
 - 未知键与类型不匹配的键会被忽略并发出警告；以 `_` 开头的键视为注释
 - 查找顺序：`--config` 参数 > 环境变量 `RPE_RENDER_CONFIG` > 当前目录下 `render_config.json`
 - 参数优先级：命令行参数 > 配置文件 > 代码默认值
+- `FIT_OFFICIAL_DIVISIONS` 默认 `false`，`NOTE_BOMB_RENDER_LIMIT` 默认 `4`
 - 测试假定默认配置运行（仓库内不创建 `render_config.json` 时行为不变）
 
 日志级别默认 `WARNING`，可通过环境变量开启调试：
@@ -89,14 +111,29 @@ RPE_RENDER_LOG_LEVEL=DEBUG python -m rpe_render chart.json
 from rpe_render.renderer import RenderConfig, render
 
 render(RenderConfig(
-    chart_path="chart.json",
+    chart_path="chart.json",     # 也可以是已解包后的 JSON 路径
     background_path="art.png",   # 可选
     output_path="preview.png",
     notes_dir="resources/notes",
     dpi=150,
     preview_bg_alpha=0.55,       # 预览区半透明黑底色透明度（0.0~1.0）
     track_bg_alpha=0.75,         # 轨道区域额外加深透明度（0.0~1.0）
+    fit_official_divisions=False, # 实验性官谱分音拟合，默认关闭
 ))
+```
+
+PEZ/ZIP 等谱面包建议使用服务层接口，它会负责临时解包、曲绘定位和清理：
+
+```python
+from rpe_render.service import render_source
+
+image = render_source(
+    "chart.pez",
+    output_format="png",
+    fit_official_divisions=True,
+    metadata={"name": "自定义标题", "level": "AT 14"},
+)
+open("preview.png", "wb").write(image)
 ```
 
 库调用若要使用配置文件，在导入 `rpe_render` 渲染模块前调用：
@@ -121,11 +158,31 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 前端会先调用 `POST /api/v1/charts/metadata` 读取谱面元数据，再将用户编辑的
 `name`、`charter`、`level`、`composer` 作为表单字段提交到 `POST /api/v1/jobs`。
 任务还支持 `format`（`png`/`jpg`）、`dpi`、`preview_bg_alpha`、`track_bg_alpha`、
-`background_blur_sigma` 与 `background_brightness`；后两项和透明度属于高级设置，
+`background_blur_sigma`、`background_brightness` 与 `fit_official_divisions`；这些参数属于高级设置，
 通常应保持默认值。
 
 `FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可显式开启实验性的官谱分音拟合，
 默认关闭；它只调整 Tap/Hold 起始时间，Drag/Flick 不参与拟合。
+
+### API 请求字段
+
+`POST /api/v1/charts/metadata` 和 `POST /api/v1/jobs` 均使用 `multipart/form-data`，
+字段 `file` 必填，支持 `.json`、`.pez`、`.zip`。
+
+| 字段 | 类型/默认值 | 说明 |
+|---|---|---|
+| `format` | `png` | `png` 或 `jpg` |
+| `dpi` | `150` | 72–600 |
+| `preview_bg_alpha` | `0.55` | 预览区黑色覆盖层透明度 |
+| `track_bg_alpha` | `0.75` | 轨道加深透明度 |
+| `background_blur_sigma` | `15` | 曲绘高斯模糊强度，0–100 |
+| `background_brightness` | `0.75` | 曲绘亮度，0–2 |
+| `fit_official_divisions` | `false` | 实验性官谱分音拟合 |
+| `name` / `charter` / `level` / `composer` | 空 | 覆盖底部信息栏对应字段 |
+
+`POST /api/v1/charts/metadata` 只解析并返回四项可编辑元数据，不创建渲染任务。
+任务接口返回 `202` 和任务 ID，通过 `GET /api/v1/jobs/{job_id}` 轮询；完成后从
+`GET /api/v1/jobs/{job_id}/result` 下载图片。
 
 可配置环境变量：
 
@@ -168,32 +225,64 @@ docker compose up --build
 ## 项目结构
 
 ```
-rpe_render/
-├── cli.py                  # argparse 命令行解析
-├── renderer.py             # 主渲染协调器（编排各模块）
-├── chart_parser.py         # RPE JSON 解析与验证
-├── timeline.py             # 分栏与像素坐标映射（纯计算）
-├── time_utils.py           # TimeT 三元组 ↔ 拍数转换
-├── models.py               # 数据模型（ChartData / NoteRenderInfo 等）
-├── note_renderer.py        # Note 贴图加载、多押判定、放置
-├── hold_renderer.py        # Hold Body/Head/End/轨迹渲染
-├── grid_renderer.py        # 网格线、拍号、BPM 标记
-├── marker_renderer.py      # 时值间隔标记、累计计数标记
-├── info_bar.py             # 底部信息栏
-├── background.py           # 曲绘模糊背景、预览区/轨道加深覆盖层
-├── fonts.py                # 自定义字体管理（FONT_PATH 加载、CJK 回退）
-├── constants.py            # 所有可调常量集中管理（支持 render_config.json 覆盖）
-└── easing/
-    ├── functions.py        # 29 种缓动函数（移植自 TypeScript 版）
-    ├── bezier.py           # 贝塞尔曲线缓动（256 段折线近似）
-    └── event_evaluator.py  # 事件值求值（多层叠加 + 缓动截取）
+.
+├── rpe_render/
+│   ├── api.py              # FastAPI：上传、任务队列、元数据接口与结果下载
+│   ├── cli.py              # argparse 命令行解析
+│   ├── service.py          # 可复用服务层：谱面包加载 + 内存图片输出
+│   ├── renderer.py         # 主渲染协调器（编排各模块）
+│   ├── division_fit.py     # 实验性官谱非 2 次幂分音拟合
+│   ├── package_loader.py   # JSON/PEZ/ZIP 安全加载、解包与曲绘定位
+│   ├── chart_parser.py     # RPE JSON 解析与验证
+│   ├── timeline.py         # 分栏与像素坐标映射（纯计算）
+│   ├── time_utils.py       # TimeT 三元组 ↔ 拍数转换
+│   ├── models.py           # 数据模型（ChartData / NoteRenderInfo 等）
+│   ├── note_renderer.py    # Note 贴图加载、多押判定、炸弹防御与放置
+│   ├── hold_renderer.py    # Hold Body/Head/End/轨迹渲染
+│   ├── grid_renderer.py    # 网格线、拍号、BPM 标记
+│   ├── marker_renderer.py  # 时值间隔标记、累计计数标记
+│   ├── info_bar.py         # 底部信息栏
+│   ├── background.py       # 曲绘模糊背景、预览区/轨道加深覆盖层
+│   ├── fonts.py            # 自定义字体管理（FONT_PATH 加载、CJK 回退）
+│   ├── constants.py        # 所有可调常量集中管理
+│   └── easing/             # 缓动函数、贝塞尔与事件求值
+├── web/
+│   ├── README.md           # Web UI/API 快速说明
+│   └── frontend/           # React + Vite 前端
+├── tests/                  # 计算、渲染、API 相关回归测试
+├── resources/              # Note 贴图、字体、示例谱面与曲绘
+├── render_config.example.json
+├── requirements.txt
+└── docker-compose.yml
 ```
 
 架构遵循：
 
-- **计算层**（parser/timeline/easing/time_utils）为纯函数、无 matplotlib 依赖，可独立测试；
-- **渲染层**模块之间禁止相互依赖；
-- 所有可调参数集中在 `constants.py`。
+- **输入层**：`package_loader` 负责格式识别、安全解包和曲绘定位，`chart_parser` 负责结构验证与模型化；
+- **预处理层**：可选的 `division_fit` 只在显式开启时调整 Tap/Hold 起始时间；
+- **计算层**：`timeline`、`easing`、`time_utils` 计算统一主时间轴、判定线姿态和像素几何；
+- **渲染层**：`grid_renderer`、`note_renderer`、`hold_renderer`、`affected_area_renderer` 等绘制前景；
+- **输出层**：`background` 合成曲绘/JPG，`info_bar` 绘制元信息和统计；
+- **适配层**：`cli` 面向命令行，`service` 面向库调用和 API，`api` 提供异步任务接口；
+- 所有可调参数集中在 `constants.py`，通过配置文件覆盖；默认关闭的实验性能力不会改变普通渲染路径。
+
+### 一次渲染的主要流程
+
+```text
+JSON / PEZ / ZIP
+      │
+      ▼
+安全加载与谱面解析 ──► (可选) 官谱分音拟合
+      │
+      ▼
+统一主时间轴与判定线姿态计算
+      │
+      ▼
+网格 / Hold / Note / 受影响区域 / 标记 / 信息栏
+      │
+      ▼
+透明前景 + 曲绘合成 ──► PNG 或 JPG
+```
 
 ## 关键渲染规则
 
@@ -208,6 +297,7 @@ rpe_render/
 | BPM 因数 | `displayBeat = localBeat × bpmfactor`，Note、Hold、轨迹、标记和重合判断统一使用映射后的主谱面时间 |
 | 忽略字段 | `above`/`yOffset`/`size`/`speed`/判定线视觉属性/extended 事件不参与预览 |
 | isFake 音符 | 过滤不渲染 |
+| 官谱分音拟合 | 仅显式开启时执行；以连续高密度 Tap/Hold 起始时间推断非 2 次幂分音，误差上限 1/16 拍；精确原生分音作为边界 |
 
 ## 测试
 
