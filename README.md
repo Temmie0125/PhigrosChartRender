@@ -124,6 +124,9 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 `background_blur_sigma` 与 `background_brightness`；后两项和透明度属于高级设置，
 通常应保持默认值。
 
+`FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可显式开启实验性的官谱分音拟合，
+默认关闭；它只调整 Tap/Hold 起始时间，Drag/Flick 不参与拟合。
+
 可配置环境变量：
 
 | 变量 | 默认值 | 说明 |

@@ -31,6 +31,11 @@ input:disabled { opacity: .55; }
 .notice { padding: 11px 13px; margin-bottom: 16px; border-left: 3px solid #e5bb63; color: #d9c89f; background: #3d321b66; border-radius: 4px; font-size: 12px; line-height: 1.5; }
 .advanced-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .advanced-grid label { gap: 6px; }
+.experimental-toggle { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; padding: 12px; border: 1px solid #725f31; border-radius: 8px; background: #3d321b33; }
+.experimental-toggle input { width: 17px; height: 17px; margin: 1px 0 0; padding: 0; accent-color: #68d5ff; }
+.experimental-toggle span { display: grid; gap: 4px; }
+.experimental-toggle strong { color: #e5d6a9; font-size: 12px; }
+.experimental-toggle small { color: #aa9a71; font-size: 11px; font-weight: 400; line-height: 1.45; }
 .secondary { margin-top: 16px; padding: 8px 12px; border: 1px solid #41687b; border-radius: 7px; color: #b9d8e5; background: transparent; font-size: 12px; cursor: pointer; }
 .secondary:hover { border-color: #70d8ff; color: #70d8ff; }
 button.primary, .download { display: inline-flex; align-items: center; justify-content: center; width: 100%; margin-top: 22px; padding: 12px 20px; border: 0; border-radius: 9px; color: #05202d; background: linear-gradient(100deg, #64d7ff, #68b6ff); font-weight: 800; text-decoration: none; cursor: pointer; }

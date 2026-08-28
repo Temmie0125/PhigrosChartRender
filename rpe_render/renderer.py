@@ -37,6 +37,7 @@ from .constants import (
     PREVIEW_BG_ALPHA,
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
+    FIT_OFFICIAL_DIVISIONS,
     NOTE_BOMB_RENDER_LIMIT,
     SIDE_MARKER_PADDING_PX,
     TRACK_BG_ALPHA,
@@ -88,6 +89,7 @@ class RenderConfig:
         metadata: dict[str, str] | None = None,
         background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
         background_brightness: float = BACKGROUND_BRIGHTNESS,
+        fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
     ):
         self.chart_path = chart_path
         self.background_path = background_path
@@ -102,6 +104,7 @@ class RenderConfig:
         self.metadata = dict(metadata or {})
         self.background_blur_sigma = min(max(float(background_blur_sigma), 0.0), 100.0)
         self.background_brightness = min(max(float(background_brightness), 0.0), 2.0)
+        self.fit_official_divisions = bool(fit_official_divisions)
 
 
 def _normalize_output_format(
@@ -179,6 +182,11 @@ def render(config: RenderConfig) -> None:
     """
     # ===== Phase 1: 解析 =====
     chart = parse_chart(config.chart_path)
+    if config.fit_official_divisions:
+        from .division_fit import fit_official_divisions
+
+        changed = fit_official_divisions(chart)
+        logger.info("Official division fitting adjusted %d Note starts", changed)
     # 元数据覆盖仅作用于当前渲染任务，不回写上传文件。
     for field_name in ("name", "charter", "level", "composer"):
         if field_name in config.metadata:

@@ -5,7 +5,11 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from .constants import BACKGROUND_BLUR_SIGMA, BACKGROUND_BRIGHTNESS
+from .constants import (
+    BACKGROUND_BLUR_SIGMA,
+    BACKGROUND_BRIGHTNESS,
+    FIT_OFFICIAL_DIVISIONS,
+)
 from .package_loader import ChartPackageError, load_chart_input
 from .renderer import RenderConfig, render
 
@@ -22,6 +26,7 @@ def render_source(
     metadata: dict[str, str] | None = None,
     background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
     background_brightness: float = BACKGROUND_BRIGHTNESS,
+    fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
 ) -> bytes:
     """Render a JSON/PEZ/ZIP source and return PNG or JPEG bytes."""
     normalized_format = output_format.lower().lstrip(".")
@@ -46,6 +51,7 @@ def render_source(
                     metadata=metadata,
                     background_blur_sigma=background_blur_sigma,
                     background_brightness=background_brightness,
+                    fit_official_divisions=fit_official_divisions,
                 )
             )
             return output.read_bytes()

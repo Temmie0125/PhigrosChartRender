@@ -45,6 +45,7 @@ def parse_args(argv: list[str] | None = None):
         OUTPUT_DPI,
         PREVIEW_BG_ALPHA,
         TRACK_BG_ALPHA,
+        FIT_OFFICIAL_DIVISIONS,
     )
     from .renderer import RenderConfig
 
@@ -113,6 +114,12 @@ def parse_args(argv: list[str] | None = None):
             f"（默认: {TRACK_BG_ALPHA}，0.0 关闭）"
         ),
     )
+    parser.add_argument(
+        "--fit-official-divisions",
+        action="store_true",
+        default=FIT_OFFICIAL_DIVISIONS,
+        help="实验性：拟合官谱常见的非 2 次幂分音（默认关闭）",
+    )
     args = parser.parse_args(argv)
     raw_args = list(argv) if argv is not None else sys.argv[1:]
     output_path = args.output
@@ -135,6 +142,7 @@ def parse_args(argv: list[str] | None = None):
         dpi=args.dpi,
         preview_bg_alpha=args.preview_bg_alpha,
         track_bg_alpha=args.track_bg_alpha,
+        fit_official_divisions=args.fit_official_divisions,
     )
 
 
@@ -175,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
                 output_format=config.output_format,
                 preview_bg_alpha=config.preview_bg_alpha,
                 track_bg_alpha=config.track_bg_alpha,
+                fit_official_divisions=config.fit_official_divisions,
             )
             Path(config.output_path).write_bytes(image)
         else:

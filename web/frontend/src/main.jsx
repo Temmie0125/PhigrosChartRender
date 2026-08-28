@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './style.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-const DEFAULT_OPTIONS = { format: 'png', dpi: 150, preview_bg_alpha: 0.55, track_bg_alpha: 0.75, background_blur_sigma: 15, background_brightness: 0.75 }
+const DEFAULT_OPTIONS = { format: 'png', dpi: 150, preview_bg_alpha: 0.55, track_bg_alpha: 0.75, background_blur_sigma: 15, background_brightness: 0.75, fit_official_divisions: false }
 const EMPTY_METADATA = { name: '', charter: '', level: '', composer: '' }
 
 function App() {
@@ -62,7 +62,7 @@ function App() {
   }
 
   function updateMetadata(field, value) { setMetadata(current => ({ ...current, [field]: value })) }
-  function resetAdvanced() { setOptions(current => ({ ...current, dpi: DEFAULT_OPTIONS.dpi, preview_bg_alpha: DEFAULT_OPTIONS.preview_bg_alpha, track_bg_alpha: DEFAULT_OPTIONS.track_bg_alpha, background_blur_sigma: DEFAULT_OPTIONS.background_blur_sigma, background_brightness: DEFAULT_OPTIONS.background_brightness })) }
+  function resetAdvanced() { setOptions(current => ({ ...current, dpi: DEFAULT_OPTIONS.dpi, preview_bg_alpha: DEFAULT_OPTIONS.preview_bg_alpha, track_bg_alpha: DEFAULT_OPTIONS.track_bg_alpha, background_blur_sigma: DEFAULT_OPTIONS.background_blur_sigma, background_brightness: DEFAULT_OPTIONS.background_brightness, fit_official_divisions: DEFAULT_OPTIONS.fit_official_divisions })) }
 
   async function submit(event) {
     event.preventDefault()
@@ -114,6 +114,7 @@ function App() {
               <label>曲绘模糊强度<input type="number" min="0" max="100" step="1" value={options.background_blur_sigma} onChange={e => setOptions({...options, background_blur_sigma: e.target.value})} /><small>0 为不模糊</small></label>
               <label>曲绘亮度<input type="number" min="0" max="2" step="0.05" value={options.background_brightness} onChange={e => setOptions({...options, background_brightness: e.target.value})} /><small>1 为原始亮度</small></label>
             </div><button type="button" className="secondary" onClick={resetAdvanced}>恢复高级设置默认值</button>
+            <label className="experimental-toggle"><input type="checkbox" checked={options.fit_official_divisions} onChange={e => setOptions({...options, fit_official_divisions: e.target.checked})} /><span><strong>启用官谱分音拟合（实验性）</strong><small>尝试将官谱转换产生的神秘64分Note等近似时间拟合到规则分音；默认关闭，可能改变 Note 位置。</small></span></label>
           </div>
         </details>
         <button className="primary" type="submit" disabled={!file || !metadataLoaded || metadataLoading || busy}>{busy ? '渲染中…' : '开始渲染'}</button>

@@ -165,6 +165,9 @@ COUNT_MARK_FONT_SIZE: float = 7.0
 
 # ==================== Note 开始时间重合标注 ====================
 
+# 实验性官谱分音拟合（默认关闭，可能改变 Note 的实际开始位置）。
+FIT_OFFICIAL_DIVISIONS: bool = False
+
 # 同一时刻、同一位置且几何完全一致的重复 Note 最多实际绘制数量。
 # 仅用于防御完全重复的 Note 炸弹；数量统计与旁侧重合标注不受影响。
 NOTE_BOMB_RENDER_LIMIT: int = 4

@@ -18,7 +18,11 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .chart_parser import parse_chart
-from .constants import BACKGROUND_BLUR_SIGMA, BACKGROUND_BRIGHTNESS
+from .constants import (
+    BACKGROUND_BLUR_SIGMA,
+    BACKGROUND_BRIGHTNESS,
+    FIT_OFFICIAL_DIVISIONS,
+)
 from .package_loader import ChartPackageError, load_chart_input
 from .service import render_source
 
@@ -34,6 +38,7 @@ class RenderOptions(BaseModel):
     composer: str | None = Field(None, max_length=200)
     background_blur_sigma: float = Field(BACKGROUND_BLUR_SIGMA, ge=0.0, le=100.0)
     background_brightness: float = Field(BACKGROUND_BRIGHTNESS, ge=0.0, le=2.0)
+    fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS
 
 
 class ChartMetadataResponse(BaseModel):
@@ -155,6 +160,7 @@ class JobManager:
                 },
                 background_blur_sigma=job.options.background_blur_sigma,
                 background_brightness=job.options.background_brightness,
+                fit_official_divisions=job.options.fit_official_divisions,
             )
             result = job.work_dir / f"preview.{job.options.format}"
             result.write_bytes(data)
@@ -239,6 +245,7 @@ async def create_job(
     composer: str | None = Form(None),
     background_blur_sigma: float = Form(BACKGROUND_BLUR_SIGMA),
     background_brightness: float = Form(BACKGROUND_BRIGHTNESS),
+    fit_official_divisions: bool = Form(FIT_OFFICIAL_DIVISIONS),
 ) -> JobResponse:
     manager.check_rate(request.client.host if request.client else "unknown")
     options = RenderOptions(
@@ -252,6 +259,7 @@ async def create_job(
         composer=composer,
         background_blur_sigma=background_blur_sigma,
         background_brightness=background_brightness,
+        fit_official_divisions=fit_official_divisions,
     )
     return _response(await manager.create(file, options))
 
