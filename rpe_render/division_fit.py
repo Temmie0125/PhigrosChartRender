@@ -9,10 +9,12 @@ from .models import ChartData
 from .timeline import map_line_beat
 
 FIT_TOLERANCE_BEATS = 1.0 / 16.0  # 64th-note tolerance
+GRID_ALIGNMENT_TOLERANCE_BEATS = 1.0 / 64.0
 MIN_INTERVALS = 3
 MIN_SPAN_BEATS = 0.5
 MAX_DIVISION_DENOMINATOR = 128
 MAX_SEQUENCE_INTERVALS = 128
+MAX_GRID_STEP = 2
 
 
 def _is_power_of_two(value: int) -> bool:
@@ -30,19 +32,11 @@ def _is_exact_native_interval(interval: float) -> bool:
 
 
 def _candidate_division(times: list[float], start: int, end: int) -> float | None:
-    """Return a non-power-of-two fitted interval for an exact time window."""
+    """Return the coarsest non-power-of-two grid fitting a time window."""
     interval_count = end - start
     span = times[end] - times[start]
     if interval_count < MIN_INTERVALS or span < MIN_SPAN_BEATS:
         return None
-    division = round(4.0 * interval_count / span)
-    if (
-        division < 3
-        or division > MAX_DIVISION_DENOMINATOR
-        or _is_power_of_two(division)
-    ):
-        return None
-    interval = 4.0 / division
     raw_intervals = [
         times[index + 1] - times[index] for index in range(start, end)
     ]
@@ -52,24 +46,35 @@ def _candidate_division(times: list[float], start: int, end: int) -> float | Non
     # 1/16-beat approximation tolerance.
     if any(_is_exact_native_interval(value) for value in raw_intervals):
         return None
-    if abs(span - interval_count * interval) > FIT_TOLERANCE_BEATS:
-        return None
-    if any(
-        abs(value - interval) > FIT_TOLERANCE_BEATS for value in raw_intervals
-    ):
-        return None
 
     # Preserve the sequence's actual boundary.  Special divisions such as
     # 10ths may start on an integer beat that is not itself a global multiple
     # of 4/10, so snapping the anchor to the fitted interval would be wrong.
     anchor = times[start]
-    if any(
-        abs((anchor + (index - start) * interval) - times[index])
-        > FIT_TOLERANCE_BEATS
-        for index in range(start, end + 1)
-    ):
-        return None
-    return interval
+    for division in range(3, MAX_DIVISION_DENOMINATOR + 1):
+        if _is_power_of_two(division):
+            continue
+        interval = 4.0 / division
+        grid_steps = [round(value / interval) for value in raw_intervals]
+        if any(step < 1 or step > MAX_GRID_STEP for step in grid_steps):
+            continue
+        if any(
+            abs(value - step * interval) > FIT_TOLERANCE_BEATS
+            for value, step in zip(raw_intervals, grid_steps)
+        ):
+            continue
+        if any(
+            abs(
+                anchor
+                + round((times[index] - anchor) / interval) * interval
+                - times[index]
+            )
+            > GRID_ALIGNMENT_TOLERANCE_BEATS
+            for index in range(start, end + 1)
+        ):
+            continue
+        return interval
+    return None
 
 
 def _fit_time_sequence(times: list[float]) -> dict[float, float]:
@@ -92,32 +97,39 @@ def _fit_time_sequence(times: list[float]) -> dict[float, float]:
             continue
         anchor = times[start]
         for index in range(start, best_end + 1):
-            mapping[times[index]] = anchor + (index - start) * best_interval
-        start = best_end + 1
+            grid_index = round((times[index] - anchor) / best_interval)
+            mapping[times[index]] = anchor + grid_index * best_interval
+        # Reuse the last note as the next run's anchor. Adjacent rhythm runs
+        # commonly share a boundary beat, and skipping it can leave the first
+        # few approximated notes of the following run unfitted.
+        start = best_end
     return mapping
 
 
 def fit_official_divisions(chart: ChartData) -> int:
     """Fit eligible Tap/Hold starts in-place and return changed Note count.
 
-    Drag and Flick starts are intentionally ignored.  Notes sharing one
-    original mapped beat are fitted together, preserving simultaneous groups.
-    The chart is mutated only when the caller explicitly enables this feature.
+    Drag and Flick starts may anchor a fitted grid but are never moved. Notes
+    sharing one original mapped beat are fitted together, preserving
+    simultaneous groups. The chart is mutated only when the caller explicitly
+    enables this feature.
     """
     events: dict[float, list[tuple[object, object]]] = defaultdict(list)
+    rhythm_times: set[float] = set()
     for line in chart.judge_line_list:
         for note in line.notes:
+            display_beat = map_line_beat(line, note.start_time_beat)
+            rhythm_times.add(display_beat)
             if note.type not in (1, 2):
                 continue
-            display_beat = map_line_beat(line, note.start_time_beat)
             events[display_beat].append((line, note))
 
-    mapping = _fit_time_sequence(sorted(events))
+    mapping = _fit_time_sequence(sorted(rhythm_times))
     changed = 0
     for original_beat, fitted_beat in mapping.items():
         if isclose(original_beat, fitted_beat, rel_tol=0.0, abs_tol=1e-12):
             continue
-        for line, note in events[original_beat]:
+        for line, note in events.get(original_beat, ()):
             note.start_time_beat = fitted_beat / float(line.bpm_factor)
             changed += 1
     return changed
