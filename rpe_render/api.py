@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import tempfile
@@ -31,6 +32,9 @@ from .package_loader import ChartPackageError, load_chart_input
 from .service import render_source
 
 
+logger = logging.getLogger("rpe_render.api")
+
+
 class RenderOptions(BaseModel):
     dpi: int = Field(150, ge=72, le=600)
     format: Literal["png", "jpg"] = "png"
@@ -42,6 +46,8 @@ class RenderOptions(BaseModel):
     composer: str | None = Field(None, max_length=200)
     background_blur_sigma: float = Field(BACKGROUND_BLUR_SIGMA, ge=0.0, le=100.0)
     background_brightness: float = Field(BACKGROUND_BRIGHTNESS, ge=0.0, le=2.0)
+    # 0 means automatic worker selection; positive values override it per job.
+    tile_workers: int = Field(0, ge=0, le=32)
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS
     smart_column_beats: bool = SMART_COLUMN_BEATS
     column_beats: int = Field(COLUMN_BEATS, ge=16, le=128, multiple_of=4)
@@ -73,6 +79,12 @@ class Job:
     progress: int = 0
     error: str | None = None
     result_path: Path | None = None
+
+
+def _format_render_error(exc: Exception) -> str:
+    """Keep the exception class and message for display in the web client."""
+    detail = str(exc).strip() or repr(exc)
+    return f"{type(exc).__name__}: {detail}"
 
 
 def _env_int(name: str, default: int, minimum: int) -> int:
@@ -166,6 +178,9 @@ class JobManager:
                 },
                 background_blur_sigma=job.options.background_blur_sigma,
                 background_brightness=job.options.background_brightness,
+                tile_workers=(
+                    None if job.options.tile_workers == 0 else job.options.tile_workers
+                ),
                 fit_official_divisions=job.options.fit_official_divisions,
                 smart_column_beats=job.options.smart_column_beats,
                 column_beats=job.options.column_beats,
@@ -175,9 +190,11 @@ class JobManager:
             job.result_path = result
             job.status, job.progress = "succeeded", 100
         except (ChartPackageError, FileNotFoundError, ValueError) as exc:
-            job.status, job.error = "failed", str(exc)
-        except Exception:
-            job.status, job.error = "failed", "渲染失败"
+            job.status, job.error = "failed", _format_render_error(exc)
+            logger.warning("Render job %s failed: %s", job.id, job.error)
+        except Exception as exc:  # noqa: BLE001 - report unexpected render failures
+            job.status, job.error = "failed", _format_render_error(exc)
+            logger.exception("Render job %s failed unexpectedly", job.id)
         finally:
             try:
                 job.source_path.unlink(missing_ok=True)
@@ -258,6 +275,7 @@ async def create_job(
     composer: str | None = Form(None),
     background_blur_sigma: float = Form(BACKGROUND_BLUR_SIGMA),
     background_brightness: float = Form(BACKGROUND_BRIGHTNESS),
+    tile_workers: int = Form(0, ge=0, le=32),
     fit_official_divisions: bool = Form(FIT_OFFICIAL_DIVISIONS),
     smart_column_beats: bool = Form(SMART_COLUMN_BEATS),
     column_beats: int = Form(COLUMN_BEATS, ge=16, le=128, multiple_of=4),
@@ -274,6 +292,7 @@ async def create_job(
         composer=composer,
         background_blur_sigma=background_blur_sigma,
         background_brightness=background_brightness,
+        tile_workers=tile_workers,
         fit_official_divisions=fit_official_divisions,
         smart_column_beats=smart_column_beats,
         column_beats=column_beats,
