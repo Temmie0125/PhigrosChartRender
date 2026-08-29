@@ -91,6 +91,7 @@ class RenderConfig:
         metadata: dict[str, str] | None = None,
         background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
         background_brightness: float = BACKGROUND_BRIGHTNESS,
+        tile_workers: int | None = None,
         fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
         smart_column_beats: bool = SMART_COLUMN_BEATS,
         column_beats: int = COLUMN_BEATS,
@@ -108,6 +109,12 @@ class RenderConfig:
         self.metadata = dict(metadata or {})
         self.background_blur_sigma = min(max(float(background_blur_sigma), 0.0), 100.0)
         self.background_brightness = min(max(float(background_brightness), 0.0), 2.0)
+        normalized_tile_workers = 0 if tile_workers is None else int(tile_workers)
+        if not 0 <= normalized_tile_workers <= 32:
+            raise ValueError("tile_workers must be 0 (automatic) or between 1 and 32")
+        self.tile_workers = (
+            None if normalized_tile_workers == 0 else normalized_tile_workers
+        )
         self.fit_official_divisions = bool(fit_official_divisions)
         self.smart_column_beats = bool(smart_column_beats)
         self.column_beats = int(column_beats)
@@ -409,6 +416,7 @@ def render(config: RenderConfig) -> None:
         config.output_format,
         bg_image=bg,
         brightness=config.background_brightness,
+        tile_workers=config.tile_workers,
     )
     logger.info("Rendered chart preview to %s", config.output_path)
 

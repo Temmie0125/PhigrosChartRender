@@ -65,6 +65,7 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 | `column_beats` | `64` | 关闭自动选择时的每栏拍数，16–128 且为 4 的倍数 |
 | `format` | `png` | `png` 或 `jpg` |
 | `dpi` | `150` | 输出 DPI，72–600 |
+| `tile_workers` | `0` | 高 DPI 分块并发数，0 为自动，1–32 可手动指定；低 DPI 未达到分块阈值时不会启用线程池 |
 | `preview_bg_alpha` | `0.55` | 预览区黑色覆盖层透明度，0–1 |
 | `track_bg_alpha` | `0.75` | 轨道加深透明度，0–1 |
 | `background_blur_sigma` | `15` | 曲绘高斯模糊强度，0–100 |
@@ -82,11 +83,14 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 - `GET /api/v1/jobs/{job_id}/result`：任务成功后下载图片。
 - `DELETE /api/v1/jobs/{job_id}`：删除任务及其临时结果。
 
+渲染失败时，任务错误信息包含异常类型和具体原因，前端会在任务状态区域展示。
+
 任务结果默认保留 30 分钟，服务重启会清理旧任务。可通过环境变量调整：
 
 | 变量 | 默认值 | 说明 |
 |---|---:|---|
 | `RPE_RENDER_WORKERS` | `1` | 并发渲染 worker 数 |
+| `RPE_RENDER_TILE_WORKERS` | `min(8, CPU 数 / RPE_RENDER_WORKERS)` | 高 DPI 背景分块合成的并发线程数；块越多时越能利用多核，但会增加内存占用 |
 | `RPE_MAX_QUEUE_SIZE` | `32` | 最大排队/运行任务数 |
 | `RPE_MAX_UPLOAD_BYTES` | `268435456` | 上传文件上限 |
 | `RPE_RESULT_TTL_SECONDS` | `1800` | 结果保留时间 |

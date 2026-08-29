@@ -24,6 +24,10 @@ class TestRenderIntegration:
         assert RenderConfig(chart_path="x.json", column_beats=128).column_beats == 128
         with pytest.raises(ValueError, match="column_beats"):
             RenderConfig(chart_path="x.json", column_beats=18)
+        assert RenderConfig(chart_path="x.json", tile_workers=4).tile_workers == 4
+        with pytest.raises(ValueError, match="tile_workers"):
+            RenderConfig(chart_path="x.json", tile_workers=33)
+        assert RenderConfig(chart_path="x.json", tile_workers=0).tile_workers is None
 
     def test_jpeg_output(self, minimal_chart_path, notes_dir, tmp_path):
         out = tmp_path / "out.jpg"

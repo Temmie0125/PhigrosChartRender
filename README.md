@@ -177,7 +177,7 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 前端会先调用 `POST /api/v1/charts/metadata` 读取谱面元数据，再将用户编辑的
 `name`、`charter`、`level`、`composer` 作为表单字段提交到 `POST /api/v1/jobs`。
 任务还支持 `format`（`png`/`jpg`）、`smart_column_beats`、`column_beats`、`dpi`、
-`preview_bg_alpha`、`track_bg_alpha`、`background_blur_sigma`、`background_brightness` 与
+`tile_workers`、`preview_bg_alpha`、`track_bg_alpha`、`background_blur_sigma`、`background_brightness` 与
 `fit_official_divisions`。Web UI 将输出格式和每栏拍数作为基础配置，其余渲染参数位于高级设置。
 
 `FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可为 RPE 谱面显式开启实验性的分音拟合，
@@ -192,6 +192,7 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 |---|---|---|
 | `format` | `png` | `png` 或 `jpg` |
 | `dpi` | `150` | 72–600 |
+| `tile_workers` | `0` | 高 DPI 分块并发数，0 为自动，1–32 可手动指定；低 DPI 未达到分块阈值时不会启用线程池 |
 | `preview_bg_alpha` | `0.55` | 预览区黑色覆盖层透明度 |
 | `track_bg_alpha` | `0.75` | 轨道加深透明度 |
 | `background_blur_sigma` | `15` | 曲绘高斯模糊强度，0–100 |
@@ -204,12 +205,14 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 `POST /api/v1/charts/metadata` 只解析并返回四项可编辑元数据，不创建渲染任务。
 任务接口返回 `202` 和任务 ID，通过 `GET /api/v1/jobs/{job_id}` 轮询；完成后从
 `GET /api/v1/jobs/{job_id}/result` 下载图片。
+渲染失败时任务的 `error` 字段会保留异常类型和具体信息，Web UI 会在任务状态区域展示。
 
 可配置环境变量：
 
 | 变量 | 默认值 | 说明 |
 |---|---:|---|
 | `RPE_RENDER_WORKERS` | `1` | 并发渲染 worker 数 |
+| `RPE_RENDER_TILE_WORKERS` | `min(8, CPU 数 / RPE_RENDER_WORKERS)` | 高 DPI 背景分块合成的并发线程数；块越多时越能利用多核，但会增加内存占用 |
 | `RPE_MAX_QUEUE_SIZE` | `32` | 最大排队/运行任务数 |
 | `RPE_MAX_UPLOAD_BYTES` | `268435456` | 上传文件上限 |
 | `RPE_RESULT_TTL_SECONDS` | `1800` | 结果保留时间 |

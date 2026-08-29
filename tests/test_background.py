@@ -100,6 +100,25 @@ class TestSaveRenderedImage:
         assert result.format == "JPEG"
         assert result.mode == "RGB"
 
+    def test_large_background_does_not_use_full_cover_crop(self, tmp_path, monkeypatch):
+        import rpe_render.background as background_module
+
+        def fail_full_crop(*_args, **_kwargs):
+            pytest.fail("large output must use tiled background composition")
+
+        monkeypatch.setattr(background_module, "cover_crop", fail_full_crop)
+        output = tmp_path / "large.png"
+        bg = np.full((8, 8, 3), 80, dtype=np.uint8)
+        save_rendered_image(
+            Image.new("RGBA", (3000, 3000), (255, 0, 0, 64)),
+            output,
+            "png",
+            bg_image=bg,
+            brightness=1.0,
+        )
+        with Image.open(output) as result:
+            assert result.size == (3000, 3000)
+
 
 class TestCoverCrop:
     def test_output_size_exact(self):
