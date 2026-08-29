@@ -17,6 +17,7 @@ from rpe_render.timeline import (
     compute_canvas_size,
     compute_columns,
     compute_max_beat,
+    compute_smart_column_beats,
     merge_all_notes,
     x_to_pixel,
 )
@@ -46,6 +47,45 @@ class TestComputeColumns:
 
     def test_zero_beats_still_one_column(self):
         assert len(compute_columns(0.0)) == 1
+
+    def test_custom_column_beats(self):
+        cols = compute_columns(100.0, column_beats=20)
+        assert len(cols) == 5
+        assert all(col.column_beats == 20 for col in cols)
+        assert cols[-1].beat_start == 80
+        assert cols[-1].beat_end == 100
+
+
+class TestSmartColumnBeats:
+    def test_returns_aligned_positive_value(self):
+        value = compute_smart_column_beats(200.0)
+        assert value >= 4
+        assert value % 4 == 0
+
+    def test_improves_ratio_against_fixed_default_for_long_chart(self):
+        from math import ceil, log
+
+        from rpe_render.constants import (
+            COLUMN_GAP,
+            COLUMN_WIDTH,
+            INFO_BAR_HEIGHT_PX,
+            BEAT_HEIGHT_PX,
+            SIDE_MARKER_PADDING_PX,
+        )
+
+        total = 200.0
+        target = 16 / 9
+
+        def error(beats):
+            columns = max(1, int(ceil(total / beats)))
+            ratio = (
+                columns * COLUMN_WIDTH
+                + max(columns - 1, 0) * COLUMN_GAP
+                + 2 * SIDE_MARKER_PADDING_PX
+            ) / (beats * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX)
+            return abs(log(ratio / target))
+
+        assert error(compute_smart_column_beats(total)) <= error(COLUMN_BEATS)
 
 
 class TestComputeColumnsAffected:

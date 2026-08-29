@@ -61,6 +61,7 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 
 | 字段 | 类型 / 默认值 | 说明 |
 |---|---|---|
+| `smart_column_beats` | `false` | 按谱面总拍数自动选择每栏拍数，使画布比例接近 16:9；覆盖 `COLUMN_BEATS` |
 | `format` | `png` | `png` 或 `jpg` |
 | `dpi` | `150` | 输出 DPI，72–600 |
 | `preview_bg_alpha` | `0.55` | 预览区黑色覆盖层透明度，0–1 |

@@ -8,6 +8,10 @@ BEAT_HEIGHT_PX: int = 96
 # 每栏拍数（16 小节 = 64 拍）
 COLUMN_BEATS: int = 64
 
+# 是否按谱面长度自动选择每栏拍数，使最终画布比例尽量接近 16:9。
+# 开启后覆盖 COLUMN_BEATS；关闭时保持固定 COLUMN_BEATS 行为。
+SMART_COLUMN_BEATS: bool = False
+
 # 单栏渲染宽度（px）
 COLUMN_WIDTH: int = 450
 

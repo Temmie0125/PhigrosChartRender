@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from math import ceil
+from math import ceil, log
 
 from .constants import (
     AFFECTED_AREA_EXTRA_GAP_PX,
@@ -26,15 +26,48 @@ from .models import ChartData, ColumnInfo, JudgeLineData, NoteData
 logger = logging.getLogger("rpe_render")
 
 
+def compute_smart_column_beats(max_beat: float) -> int:
+    """选择使画布宽高比尽量接近 16:9 的每栏拍数。
+
+    每栏宽度固定，候选拍数按 4 拍（整小节）递增；对每个候选值计算
+    完整画布的理论宽高（含信息栏和两侧标记边距），选择对数比例误差
+    最小者。该函数只依赖谱面总拍数，不改变默认固定分栏行为。
+    """
+    total = max(float(max_beat), 0.0)
+    max_candidate = max(4, int(ceil(total)))
+    candidates = range(4, max_candidate + 1, 4)
+
+    target = 16.0 / 9.0
+    best = 4
+    best_error = float("inf")
+    for beats in candidates:
+        columns = max(1, int(ceil(total / beats)))
+        # 最后一栏右侧默认没有 COLUMN_GAP；受影响区域的额外间距无法仅由
+        # 谱面长度推断，因此这里按基础画布宽度估算。
+        width = (
+            columns * COLUMN_WIDTH
+            + max(columns - 1, 0) * COLUMN_GAP
+            + 2 * SIDE_MARKER_PADDING_PX
+        )
+        height = beats * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
+        ratio = width / max(height, 1.0)
+        # log 误差对“过宽”和“过高”对称，比绝对误差更适合比例优化。
+        error = abs(log(max(ratio, 1e-12) / target))
+        if error < best_error:
+            best, best_error = beats, error
+    return best
+
+
 def compute_columns(
     max_beat: float,
     affected_columns: set[int] | None = None,
     column_area_widths: dict[int, float] | None = None,
+    column_beats: float = COLUMN_BEATS,
 ) -> list[ColumnInfo]:
     """根据谱面总拍数计算所有分栏信息。
 
     分栏规则:
-    - 每栏 COLUMN_BEATS（64）拍
+    - 每栏使用 ``column_beats`` 拍（默认取 ``COLUMN_BEATS``）
     - 栏宽 COLUMN_WIDTH（450px），栏间距 COLUMN_GAP（150px）
     - 单行从左到右排列（D11），不换行
     - 每栏 Y 坐标相同：底部 = 0，顶部 = 64 * 64 = 4096px
@@ -47,15 +80,17 @@ def compute_columns(
             该栏的额外间距取 max(AFFECTED_AREA_EXTRA_GAP_PX,
             AFFECTED_AREA_MARGIN_LEFT_PX + 宽度)，保证小区域不被右侧栏
             或画布右缘遮挡。None 时行为与旧版完全一致。
+        column_beats: 每栏拍数；用于智能分栏时覆盖 ``COLUMN_BEATS``。
 
     Returns:
         分栏信息列表（至少 1 栏）
     """
+    column_beats = max(float(column_beats), 1e-6)
     if max_beat <= 0:
         num_columns = 1
     else:
         # max_beat 恰好落在栏边界时属于下一栏的开始，不需要额外一栏
-        num_columns = int(ceil(max_beat / COLUMN_BEATS))
+        num_columns = int(ceil(max_beat / column_beats))
         if num_columns == 0:
             num_columns = 1
 
@@ -74,8 +109,8 @@ def compute_columns(
 
     columns: list[ColumnInfo] = []
     for index in range(num_columns):
-        beat_start = index * COLUMN_BEATS
-        beat_end = beat_start + COLUMN_BEATS
+        beat_start = index * column_beats
+        beat_end = beat_start + column_beats
         # 累积式左边界：受影响的中间栏在右侧额外占位，后续栏整体右移
         pixel_left = float(
             sum(COLUMN_WIDTH + COLUMN_GAP + gaps[i] for i in range(index))
@@ -89,8 +124,9 @@ def compute_columns(
                 pixel_left=pixel_left,
                 pixel_right=pixel_right,
                 pixel_bottom=0.0,
-                pixel_top=COLUMN_BEATS * BEAT_HEIGHT_PX,
+                pixel_top=column_beats * BEAT_HEIGHT_PX,
                 pixel_gap_right=gaps[index],
+                column_beats=column_beats,
             )
         )
     return columns
@@ -113,8 +149,9 @@ def beat_to_pixel(beat: float, columns: list[ColumnInfo]) -> tuple[int, float, f
             f"Beat {beat} is out of range [{columns[0].beat_start}, {last.beat_end}]"
         )
 
-    col_index = min(int(beat // COLUMN_BEATS), len(columns) - 1)
-    y_in_column = (beat - col_index * COLUMN_BEATS) * BEAT_HEIGHT_PX
+    column_beats = columns[0].column_beats
+    col_index = min(int(beat // column_beats), len(columns) - 1)
+    y_in_column = (beat - col_index * column_beats) * BEAT_HEIGHT_PX
     x_offset = columns[col_index].pixel_left  # 与 compute_columns 的累积公式保持同步
     return col_index, y_in_column, float(x_offset)
 
@@ -191,7 +228,7 @@ def compute_canvas_size(columns: list[ColumnInfo]) -> tuple[float, float]:
     """计算最终画布尺寸（英寸）。
 
     宽度 = 最后栏右边界 + 末栏额外间距 + 两侧标记边距 / OUTPUT_DPI；
-    高度 = (栏高 + 信息栏高) / OUTPUT_DPI。
+    高度 = (实际栏高 + 信息栏高) / OUTPUT_DPI；实际栏高由 ``ColumnInfo.column_beats`` 决定。
 
     Returns:
         (width_inches, height_inches)
@@ -201,5 +238,5 @@ def compute_canvas_size(columns: list[ColumnInfo]) -> tuple[float, float]:
         + columns[-1].pixel_gap_right
         + 2 * SIDE_MARKER_PADDING_PX
     )
-    height_px = COLUMN_BEATS * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
+    height_px = columns[0].column_beats * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
     return width_px / OUTPUT_DPI, height_px / OUTPUT_DPI

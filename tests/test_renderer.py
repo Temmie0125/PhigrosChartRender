@@ -50,6 +50,41 @@ class TestRenderIntegration:
         expected_h = COLUMN_BEATS * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
         assert abs(h - expected_h) <= 4
 
+    def test_smart_column_beats_changes_canvas_geometry(
+        self, real_chart_path, notes_dir, tmp_path
+    ):
+        from math import ceil
+
+        from rpe_render.constants import (
+            BEAT_HEIGHT_PX,
+            COLUMN_GAP,
+            COLUMN_WIDTH,
+            INFO_BAR_HEIGHT_PX,
+            SIDE_MARKER_PADDING_PX,
+        )
+        from rpe_render.chart_parser import parse_chart
+        from rpe_render.timeline import compute_max_beat, compute_smart_column_beats
+
+        chart = parse_chart(real_chart_path)
+        max_beat = compute_max_beat(chart)
+        beats = compute_smart_column_beats(max_beat)
+        out = tmp_path / "smart.png"
+        render(
+            RenderConfig(
+                chart_path=real_chart_path,
+                output_path=out,
+                notes_dir=notes_dir,
+                smart_column_beats=True,
+            )
+        )
+        image = Image.open(out)
+        expected_h = beats * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
+        assert abs(image.height - expected_h) <= 4
+        # 受影响判定线可能让末栏额外增加区域间距，因此宽度至少包含基础分栏宽度。
+        columns = int(ceil(max_beat / beats))
+        base_w = columns * COLUMN_WIDTH + max(columns - 1, 0) * COLUMN_GAP + 2 * SIDE_MARKER_PADDING_PX
+        assert image.width >= base_w - 3
+
     def test_transparent_without_background(self, minimal_chart_path, notes_dir, tmp_path):
         out = tmp_path / "transparent.png"
         render(

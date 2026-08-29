@@ -46,6 +46,7 @@ def parse_args(argv: list[str] | None = None):
         PREVIEW_BG_ALPHA,
         TRACK_BG_ALPHA,
         FIT_OFFICIAL_DIVISIONS,
+        SMART_COLUMN_BEATS,
     )
     from .renderer import RenderConfig
 
@@ -120,6 +121,12 @@ def parse_args(argv: list[str] | None = None):
         default=FIT_OFFICIAL_DIVISIONS,
         help="实验性：拟合官谱常见的非 2 次幂分音（默认关闭）",
     )
+    parser.add_argument(
+        "--smart-column-beats",
+        action="store_true",
+        default=SMART_COLUMN_BEATS,
+        help="按谱面长度智能调节每栏拍数，使画布比例接近 16:9",
+    )
     args = parser.parse_args(argv)
     raw_args = list(argv) if argv is not None else sys.argv[1:]
     output_path = args.output
@@ -143,6 +150,7 @@ def parse_args(argv: list[str] | None = None):
         preview_bg_alpha=args.preview_bg_alpha,
         track_bg_alpha=args.track_bg_alpha,
         fit_official_divisions=args.fit_official_divisions,
+        smart_column_beats=args.smart_column_beats,
     )
 
 
@@ -184,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
                 preview_bg_alpha=config.preview_bg_alpha,
                 track_bg_alpha=config.track_bg_alpha,
                 fit_official_divisions=config.fit_official_divisions,
+                smart_column_beats=config.smart_column_beats,
             )
             Path(config.output_path).write_bytes(image)
         else:

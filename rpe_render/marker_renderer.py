@@ -36,6 +36,7 @@ INTERVAL_INSET_PX = 0.0
 
 def compute_interval_markers(
     notes: list[NoteRenderInfo],
+    column_beats: float = COLUMN_BEATS,
 ) -> list[tuple[float, float, str]]:
     """计算时值间隔标记。
 
@@ -64,7 +65,7 @@ def compute_interval_markers(
             label = str(round(4.0 / interval))
             mid_beat = (prev.beat + curr.beat) / 2.0  # 间隔中点
             markers.append(
-                (mid_beat, float(int(mid_beat // COLUMN_BEATS)), label)
+                (mid_beat, float(int(mid_beat // column_beats)), label)
             )
 
     return markers
@@ -73,6 +74,7 @@ def compute_interval_markers(
 def compute_count_markers(
     notes: list[NoteRenderInfo],
     max_beat: float,
+    column_beats: float = COLUMN_BEATS,
 ) -> list[tuple[float, float, int]]:
     """计算每 4 拍的 Note 累计计数标记。
 
@@ -92,7 +94,7 @@ def compute_count_markers(
         while note_idx < len(sorted_notes) and sorted_notes[note_idx].beat <= check_beat:
             cumulative += 1
             note_idx += 1
-        col = int(check_beat // COLUMN_BEATS)
+        col = int(check_beat // column_beats)
         markers.append((float(check_beat), float(col), cumulative))
 
     return markers
@@ -140,9 +142,11 @@ def compute_overlap_groups(
     return groups
 
 
-def _beat_to_y(beat: float, col_index: int) -> float:
+def _beat_to_y(
+    beat: float, col_index: int, column_beats: float = COLUMN_BEATS
+) -> float:
     """栏内 Y 像素（下落式，从底部向上递增）。"""
-    return (beat - col_index * COLUMN_BEATS) * BEAT_HEIGHT_PX
+    return (beat - col_index * column_beats) * BEAT_HEIGHT_PX
 
 
 def _edge_va(y: float, col: ColumnInfo) -> str:
@@ -168,11 +172,12 @@ def render_markers(
         return
 
     # ---- 时值间隔标记（栏内右缘，与外侧计数错开）----
-    for beat, col_index, label in compute_interval_markers(notes):
+    column_beats = columns[0].column_beats
+    for beat, col_index, label in compute_interval_markers(notes, column_beats):
         if col_index < 0 or col_index >= len(columns):
             continue
         col = columns[int(col_index)]
-        y = _beat_to_y(beat, int(col_index))
+        y = _beat_to_y(beat, int(col_index), column_beats)
         ax.text(
             col.pixel_right - INTERVAL_INSET_PX,
             y,
@@ -186,7 +191,9 @@ def render_markers(
 
     # ---- 累计计数标记（栏外右侧）----
     max_beat = columns[-1].beat_end
-    for beat, col_index, count in compute_count_markers(notes, max_beat):
+    for beat, col_index, count in compute_count_markers(
+        notes, max_beat, column_beats
+    ):
         if col_index < 0 or col_index >= len(columns):
             continue
         col = columns[int(col_index)]

@@ -172,6 +172,8 @@ class ColumnInfo:
     pixel_bottom: float  # 栏底部像素 Y
     pixel_top: float  # 栏顶部像素 Y
     pixel_gap_right: float = 0.0  # 该栏右侧额外间距（受影响栏 > 0，其余 0）
+    # 实际渲染使用的每栏拍数；默认值保持与 COLUMN_BEATS 兼容。
+    column_beats: float = 64.0
 
 
 @dataclass

@@ -9,6 +9,7 @@ from .constants import (
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
     FIT_OFFICIAL_DIVISIONS,
+    SMART_COLUMN_BEATS,
 )
 from .package_loader import ChartPackageError, load_chart_input
 from .renderer import RenderConfig, render
@@ -27,6 +28,7 @@ def render_source(
     background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
     background_brightness: float = BACKGROUND_BRIGHTNESS,
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
+    smart_column_beats: bool = SMART_COLUMN_BEATS,
 ) -> bytes:
     """Render a JSON/PEZ/ZIP source and return PNG or JPEG bytes."""
     normalized_format = output_format.lower().lstrip(".")
@@ -56,6 +58,7 @@ def render_source(
                     background_blur_sigma=background_blur_sigma,
                     background_brightness=background_brightness,
                     fit_official_divisions=fit_official_divisions,
+                    smart_column_beats=smart_column_beats,
                 )
             )
             return output.read_bytes()

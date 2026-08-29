@@ -127,7 +127,9 @@ def build_affected_segments(
     return segments
 
 
-def affected_column_indices(segments: list[AffectedSegment]) -> set[int]:
+def affected_column_indices(
+    segments: list[AffectedSegment], column_beats: float = COLUMN_BEATS
+) -> set[int]:
     """受影响段覆盖的所有栏索引。
 
     每个 note 计入其 column；Hold 再按 end_beat 补齐跨过的所有栏。
@@ -139,20 +141,22 @@ def affected_column_indices(segments: list[AffectedSegment]) -> set[int]:
             if n.note.type == 2:
                 cols.update(
                     range(
-                        int(n.beat // COLUMN_BEATS),
-                        int(n.end_beat // COLUMN_BEATS) + 1,
+                        int(n.beat // column_beats),
+                        int(n.end_beat // column_beats) + 1,
                     )
                 )
     return cols
 
 
-def _note_covers_column(note_info: NoteRenderInfo, col_index: int) -> bool:
+def _note_covers_column(
+    note_info: NoteRenderInfo, col_index: int, column_beats: float = COLUMN_BEATS
+) -> bool:
     """note 是否覆盖指定栏（Hold 按 [start 栏, end 栏] 覆盖，其余仅本栏）。"""
     if note_info.note.type == 2:
         return (
-            int(note_info.beat // COLUMN_BEATS)
+            int(note_info.beat // column_beats)
             <= col_index
-            <= int(note_info.end_beat // COLUMN_BEATS)
+            <= int(note_info.end_beat // column_beats)
         )
     return note_info.column == col_index
 
@@ -169,7 +173,7 @@ def _note_x_in_column(
     """
     if note_info.note.type == 2 and col_index != note_info.column:
         line = note_info.judge_line
-        display_t = max(note_info.beat, col_index * COLUMN_BEATS)
+        display_t = max(note_info.beat, col_index * columns[0].column_beats)
         factor = float(getattr(line, "bpm_factor", 1.0)) if line is not None else 1.0
         local_t = display_t / factor
         if line is not None and note_info.chart is not None and note_info.line_index >= 0:
@@ -272,7 +276,8 @@ def render_affected_boxes(
     for seg in segments:
         for col in columns:
             column_notes = [
-                n for n in seg.notes if _note_covers_column(n, col.index)
+                n for n in seg.notes
+                if _note_covers_column(n, col.index, columns[0].column_beats)
             ]
             if not column_notes:
                 continue
@@ -314,6 +319,7 @@ def render_affected_boxes(
 
 def compute_affected_area_widths(
     segments: list[AffectedSegment],
+    column_beats: float = COLUMN_BEATS,
 ) -> dict[int, float]:
     """每个受影响栏的小区域宽度：栏内受影响 note 的真实横向占用宽度。
 
@@ -326,12 +332,14 @@ def compute_affected_area_widths(
     """
     scale = COLUMN_WIDTH / (GAME_X_MAX - GAME_X_MIN)
     widths: dict[int, float] = {}
-    for col_index in sorted(affected_column_indices(segments)):
+    for col_index in sorted(
+        affected_column_indices(segments, column_beats)
+    ):
         px = [
             n.note.position_x
             for seg in segments
             for n in seg.notes
-            if _note_covers_column(n, col_index)
+            if _note_covers_column(n, col_index, column_beats)
         ]
         if not px:
             continue
@@ -359,19 +367,20 @@ def _make_area_x(
 def _hold_segment_geometry(
     note_info: NoteRenderInfo,
     col_index: int,
+    column_beats: float = COLUMN_BEATS,
 ) -> tuple[float, float, float, float, bool, bool]:
     """Hold 在指定栏内的分段几何（仿照 hold_renderer.prepare_hold_render_info）。
 
     Returns:
         (seg_start, seg_end, y_head, y_end, has_head, has_end)
     """
-    col_base = col_index * COLUMN_BEATS
+    col_base = col_index * column_beats
     seg_start = max(note_info.beat, col_base)
-    seg_end = min(note_info.end_beat, col_base + COLUMN_BEATS)
+    seg_end = min(note_info.end_beat, col_base + column_beats)
     y_head = (seg_start - col_base) * BEAT_HEIGHT_PX
     y_end = (seg_end - col_base) * BEAT_HEIGHT_PX
-    has_head = col_index == int(note_info.beat // COLUMN_BEATS)
-    has_end = col_index == int(note_info.end_beat // COLUMN_BEATS)
+    has_head = col_index == int(note_info.beat // column_beats)
+    has_end = col_index == int(note_info.end_beat // column_beats)
     return seg_start, seg_end, y_head, y_end, has_head, has_end
 
 
@@ -382,12 +391,13 @@ def _draw_icon(
     col_index: int,
     area_x: Callable[[float], float],
     zorder: float,
+    column_beats: float = COLUMN_BEATS,
 ) -> None:
     """区域内绘制一个普通 Note 图标（X 由真实间距映射）。"""
     img = image_loader.get_note_image(note_info.note.type, note_info.is_multitap)
     h, w = img.shape[0], img.shape[1]
     cx = area_x(note_info.note.position_x)
-    cy = (note_info.beat - col_index * COLUMN_BEATS) * BEAT_HEIGHT_PX
+    cy = (note_info.beat - col_index * column_beats) * BEAT_HEIGHT_PX
     ax.imshow(
         img,
         extent=[cx - w / 2, cx + w / 2, cy - h / 2, cy + h / 2],
@@ -404,10 +414,11 @@ def _draw_hold_piece(
     col_index: int,
     area_x: Callable[[float], float],
     zorder: float,
+    column_beats: float = COLUMN_BEATS,
 ) -> None:
     """区域内绘制 Hold 在该栏的一段（Head/End/Body，X 全部由 positionX 映射）。"""
     _, _, y_head, y_end, has_head, has_end = _hold_segment_geometry(
-        note_info, col_index
+        note_info, col_index, column_beats
     )
     hl = note_info.is_multitap
     cx = area_x(note_info.note.position_x)
@@ -439,7 +450,7 @@ def _draw_hold_piece(
         )
         body_top = y_end - h / 2 + HOLD_BODY_OVERLAP_PX
     else:
-        body_top = COLUMN_BEATS * BEAT_HEIGHT_PX
+        body_top = column_beats * BEAT_HEIGHT_PX
 
     body_height = body_top - body_bottom
     if body_height > 0:
@@ -456,6 +467,7 @@ def _draw_hold_piece(
 def _affected_extent_in_column(
     segments: list[AffectedSegment],
     col_index: int,
+    column_beats: float = COLUMN_BEATS,
 ) -> tuple[float, float] | None:
     """受影响段在指定栏内的纵向拍数范围（与栏范围求交）。
 
@@ -466,14 +478,14 @@ def _affected_extent_in_column(
         n
         for seg in segments
         for n in seg.notes
-        if n.render_enabled and _note_covers_column(n, col_index)
+        if n.render_enabled and _note_covers_column(n, col_index, column_beats)
     ]
     if not covers:
         return None
-    t0 = max(min(n.beat for n in covers), col_index * COLUMN_BEATS)
+    t0 = max(min(n.beat for n in covers), col_index * column_beats)
     t1 = min(
         max(_note_end_beat(n) for n in covers),
-        (col_index + 1) * COLUMN_BEATS,
+        (col_index + 1) * column_beats,
     )
     if t1 <= t0:
         return None
@@ -497,10 +509,13 @@ def render_affected_areas(
     zorder 按 beat 排序 10+ 递增；同刻时 Hold 排前（zorder 更低），
     非 Hold Note 绘制在上层，避免 Hold 头遮挡与之重合的音符。
     """
+    column_beats = columns[0].column_beats
     affected_cols = sorted(
-        c for c in affected_column_indices(segments) if c < len(columns)
+        c
+        for c in affected_column_indices(segments, columns[0].column_beats)
+        if c < len(columns)
     )
-    area_widths = compute_affected_area_widths(segments)
+    area_widths = compute_affected_area_widths(segments, column_beats)
     scale = COLUMN_WIDTH / (GAME_X_MAX - GAME_X_MIN)
 
     for col_index in affected_cols:
@@ -515,14 +530,17 @@ def render_affected_areas(
             n
             for seg in segments
             for n in seg.notes
-            if n.render_enabled and _note_covers_column(n, col_index)
+            if n.render_enabled
+            and _note_covers_column(n, col_index, columns[0].column_beats)
         ]
         p_min = min(n.note.position_x for n in col_notes)
         area_x = _make_area_x(area_left, p_min, scale)
 
         # 背景与主栏轨道同款：半透明黑覆盖在预览区底色之上，仅描边区分区域；
         # 纵向仅覆盖该栏受影响段的范围（与受影响区域等高），高度为 0 时跳过
-        extent = _affected_extent_in_column(segments, col_index)
+        extent = _affected_extent_in_column(
+            segments, col_index, columns[0].column_beats
+        )
         if extent is not None and track_bg_alpha > 0.0:
             t0, t1 = extent
             y0 = (t0 - col.beat_start) * BEAT_HEIGHT_PX
@@ -546,7 +564,9 @@ def render_affected_areas(
         jobs: list[tuple[float, int, Callable[[float], None]]] = []
         for seg in segments:
             for n in seg.notes:
-                if not n.render_enabled or not _note_covers_column(n, col_index):
+                if not n.render_enabled or not _note_covers_column(
+                    n, col_index, columns[0].column_beats
+                ):
                     continue
                 if n.note.type == 2:
                     jobs.append(
@@ -554,7 +574,8 @@ def render_affected_areas(
                             n.beat,
                             0,
                             lambda z, n=n: _draw_hold_piece(
-                                ax, image_loader, n, col_index, area_x, z
+                                ax, image_loader, n, col_index, area_x, z,
+                                column_beats,
                             ),
                         )
                     )
@@ -564,7 +585,8 @@ def render_affected_areas(
                             n.beat,
                             1,
                             lambda z, n=n: _draw_icon(
-                                ax, image_loader, n, col_index, area_x, z
+                                ax, image_loader, n, col_index, area_x, z,
+                                column_beats,
                             ),
                         )
                     )

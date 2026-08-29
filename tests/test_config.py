@@ -34,6 +34,12 @@ class TestLoadConfig:
         assert constants.TRACK_BG_ALPHA == 0.5
         assert applied == {"BEAT_HEIGHT_PX": 128, "TRACK_BG_ALPHA": 0.5}
 
+    def test_smart_column_beats_override(self, restored_constants, tmp_path):
+        p = write_config(tmp_path, {"SMART_COLUMN_BEATS": True})
+        applied = constants.load_config(p)
+        assert constants.SMART_COLUMN_BEATS is True
+        assert applied == {"SMART_COLUMN_BEATS": True}
+
     def test_lowercase_key_matches(self, restored_constants, tmp_path):
         p = write_config(tmp_path, {"beat_height_px": 64})
         constants.load_config(p)

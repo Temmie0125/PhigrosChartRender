@@ -38,6 +38,7 @@ from .constants import (
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
     FIT_OFFICIAL_DIVISIONS,
+    SMART_COLUMN_BEATS,
     NOTE_BOMB_RENDER_LIMIT,
     SIDE_MARKER_PADDING_PX,
     TRACK_BG_ALPHA,
@@ -65,6 +66,7 @@ from .timeline import (
     compute_canvas_size,
     compute_columns,
     compute_max_beat,
+    compute_smart_column_beats,
     map_line_beat,
     merge_all_notes,
     x_to_pixel,
@@ -90,6 +92,7 @@ class RenderConfig:
         background_blur_sigma: float = BACKGROUND_BLUR_SIGMA,
         background_brightness: float = BACKGROUND_BRIGHTNESS,
         fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
+        smart_column_beats: bool = SMART_COLUMN_BEATS,
     ):
         self.chart_path = chart_path
         self.background_path = background_path
@@ -105,6 +108,7 @@ class RenderConfig:
         self.background_blur_sigma = min(max(float(background_blur_sigma), 0.0), 100.0)
         self.background_brightness = min(max(float(background_brightness), 0.0), 2.0)
         self.fit_official_divisions = bool(fit_official_divisions)
+        self.smart_column_beats = bool(smart_column_beats)
 
 
 def _normalize_output_format(
@@ -130,7 +134,8 @@ def _create_figure(columns: list[ColumnInfo], dpi: int) -> tuple[Figure, Axes, A
     canvas_w_in, canvas_h_in = compute_canvas_size(columns)
     fig = plt.figure(figsize=(canvas_w_in, canvas_h_in), dpi=dpi)
 
-    total_height_px = COLUMN_BEATS * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
+    column_beats = columns[0].column_beats
+    total_height_px = column_beats * BEAT_HEIGHT_PX + INFO_BAR_HEIGHT_PX
     info_frac = INFO_BAR_HEIGHT_PX / total_height_px
 
     ax_info = fig.add_axes([0.0, 0.0, 1.0, info_frac])
@@ -144,7 +149,7 @@ def _create_figure(columns: list[ColumnInfo], dpi: int) -> tuple[Figure, Axes, A
         + columns[-1].pixel_gap_right
         + SIDE_MARKER_PADDING_PX,
     )
-    ax_main.set_ylim(0, COLUMN_BEATS * BEAT_HEIGHT_PX)
+    ax_main.set_ylim(0, column_beats * BEAT_HEIGHT_PX)
     ax_main.axis("off")
     # 信息栏与主区共用同一像素坐标空间（xlim 与主区一致，ylim 为信息栏高度），
     # 使整图背景曲绘能按像素精确切片铺到信息栏
@@ -207,7 +212,14 @@ def render(config: RenderConfig) -> None:
 
     # ===== Phase 3a: Note 渲染信息准备（角度修正 + 栏索引，纯 beat 数学）=====
     # 栏数只由 max_beat 决定（受影响栏只影响像素几何，不影响栏数）
-    num_columns = max(1, int(ceil(max_beat / COLUMN_BEATS)))
+    column_beats = (
+        compute_smart_column_beats(max_beat)
+        if config.smart_column_beats
+        else COLUMN_BEATS
+    )
+    if config.smart_column_beats:
+        logger.info("Smart column beats selected: %s", column_beats)
+    num_columns = max(1, int(ceil(max_beat / column_beats)))
     notes_info: list[NoteRenderInfo] = []
     for line_index, line in enumerate(chart.judge_line_list):
         for note in line.notes:
@@ -218,7 +230,7 @@ def render(config: RenderConfig) -> None:
             pose = judge_line_pose_at(chart, line_index, local_beat)
             # 判定线上的 Note 沿判定线 X 轴落点；世界姿态负责父线变换。
             true_x = pose.x + note.position_x * cos(radians(pose.angle))
-            col = min(int(t_beat // COLUMN_BEATS), num_columns - 1)
+            col = min(int(t_beat // column_beats), num_columns - 1)
 
             notes_info.append(
                 NoteRenderInfo(
@@ -252,9 +264,14 @@ def render(config: RenderConfig) -> None:
     # 受影响段检测 → 受影响栏集合 → 各栏小区域宽度（真实间距占用）→ 分栏
     # （受影响栏右侧额外间距按区域宽度动态放大）
     segments = build_affected_segments(notes_info)
-    affected_columns = affected_column_indices(segments)
-    column_area_widths = compute_affected_area_widths(segments)
-    columns = compute_columns(max_beat, affected_columns, column_area_widths)
+    affected_columns = affected_column_indices(segments, column_beats)
+    column_area_widths = compute_affected_area_widths(segments, column_beats)
+    columns = compute_columns(
+        max_beat,
+        affected_columns,
+        column_area_widths,
+        column_beats=column_beats,
+    )
 
     # ===== Phase 3b: 回填像素坐标（依赖分栏几何）=====
     for info in notes_info:
@@ -277,7 +294,7 @@ def render(config: RenderConfig) -> None:
         + columns[-1].pixel_gap_right
         + 2 * SIDE_MARKER_PADDING_PX
     )
-    canvas_h_px = COLUMN_BEATS * BEAT_HEIGHT_PX
+    canvas_h_px = column_beats * BEAT_HEIGHT_PX
 
     # [可选] 背景只在此处加载。Matplotlib 始终渲染透明前景，曲绘在
     # Phase 5 由 Pillow 一次性合成，避免长谱面的背景分块产生大量 artist。

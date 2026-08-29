@@ -57,9 +57,9 @@ class HoldRenderInfo:
     column_index: int = 0  # 本段所在分栏索引
 
 
-def _column_floor(beat: float) -> float:
+def _column_floor(beat: float, column_beats: float = COLUMN_BEATS) -> float:
     """beat 所在栏的起始拍数。"""
-    return float(int(beat // COLUMN_BEATS) * COLUMN_BEATS)
+    return float(int(beat // column_beats) * column_beats)
 
 
 def _has_actual_displacement(
@@ -92,6 +92,7 @@ def sample_hold_trajectory(
     display_start_beat: float | None = None,
     display_end_beat: float | None = None,
     display_factor: float = 1.0,
+    column_beats: float = COLUMN_BEATS,
 ) -> list[tuple[float, float]]:
     """对 Hold 持续期间的判定线 X + note.positionX 进行采样。
 
@@ -118,7 +119,7 @@ def sample_hold_trajectory(
     if display_end_beat is None:
         display_end_beat = end_beat * display_factor
     display_duration = display_end_beat - display_start_beat
-    col_base = _column_floor(display_start_beat)
+    col_base = _column_floor(display_start_beat, column_beats)
 
     for i in range(num_samples + 1):
         t = start_beat + (duration * i / num_samples)
@@ -179,7 +180,8 @@ def prepare_hold_render_info(
         HoldRenderInfo 列表（跨栏 Hold 会产生多个条目）
     """
     infos: list[HoldRenderInfo] = []
-    column_top = float(COLUMN_BEATS * BEAT_HEIGHT_PX)
+    column_beats = columns[0].column_beats
+    column_top = float(column_beats * BEAT_HEIGHT_PX)
 
     for info in hold_notes:
         # HL 贴图可能带有额外发光延伸，几何计算必须使用该音符实际采用
@@ -200,13 +202,13 @@ def prepare_hold_render_info(
 
         s, e = info.beat, info.end_beat
         factor = float(getattr(line, "bpm_factor", 1.0)) if line is not None else 1.0
-        col_s = int(s // COLUMN_BEATS)
-        col_e = int(e // COLUMN_BEATS)
+        col_s = int(s // column_beats)
+        col_e = int(e // column_beats)
 
         for col in range(col_s, col_e + 1):
-            col_base = col * COLUMN_BEATS
+            col_base = col * column_beats
             seg_start = max(s, col_base)
-            seg_end = min(e, col_base + COLUMN_BEATS)
+            seg_end = min(e, col_base + column_beats)
 
             y_head_seg = (seg_start - col_base) * BEAT_HEIGHT_PX
             y_end_seg = (seg_end - col_base) * BEAT_HEIGHT_PX
@@ -266,6 +268,7 @@ def prepare_hold_render_info(
                 display_start_beat=seg_start,
                 display_end_beat=seg_end,
                 display_factor=factor,
+                column_beats=column_beats,
             )
             # 设计文档：仅当 Hold 持续期间存在实际位移时才渲染运动轨迹。
             # 无位移时轨迹与竖直 Body 重合，置 None 跳过渲染。
