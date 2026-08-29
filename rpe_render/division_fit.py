@@ -44,7 +44,33 @@ def _candidate_division(times: list[float], start: int, end: int) -> float | Non
     # guard, a neighbouring 24th-note run can absorb 16th/32nd notes because
     # their numeric difference still falls inside the intentionally generous
     # 1/16-beat approximation tolerance.
-    if any(_is_exact_native_interval(value) for value in raw_intervals):
+    # A frequent official pattern is ``24th jump, 12th, native 8th``.  The
+    # final native interval is a rhythmic boundary (the half-beat anchor),
+    # not part of the approximated grid.  Keep it as an endpoint while
+    # fitting the two preceding intervals.  Native intervals in the middle
+    # of a candidate remain hard boundaries unless they form a single native
+    # half-beat bridge between non-native intervals (e.g. Doll at beat 82:
+    # 12th, 8th, 24th).  That bridge is three fitted 24th grid steps and is
+    # still an exact native boundary, so allowing it does not move the anchor.
+    trailing_native = _is_exact_native_interval(raw_intervals[-1])
+    fit_intervals = raw_intervals[:-1] if trailing_native else raw_intervals
+    if len(fit_intervals) < (MIN_INTERVALS - 1 if trailing_native else MIN_INTERVALS):
+        return None
+    native_indices = [
+        index for index, value in enumerate(fit_intervals)
+        if _is_exact_native_interval(value)
+    ]
+    if native_indices:
+        # Only an internal half-beat may bridge two approximated intervals;
+        # other native intervals remain hard boundaries as in the old logic.
+        if any(
+            value != 0.5
+            for value in (fit_intervals[index] for index in native_indices)
+        ) or any(index == 0 or index == len(fit_intervals) - 1 for index in native_indices):
+            return None
+    fit_end = start + len(fit_intervals)
+    fit_span = times[fit_end] - times[start]
+    if fit_span < MIN_SPAN_BEATS:
         return None
 
     # Preserve the sequence's actual boundary.  Special divisions such as
@@ -55,12 +81,20 @@ def _candidate_division(times: list[float], start: int, end: int) -> float | Non
         if _is_power_of_two(division):
             continue
         interval = 4.0 / division
-        grid_steps = [round(value / interval) for value in raw_intervals]
-        if any(step < 1 or step > MAX_GRID_STEP for step in grid_steps):
+        grid_steps = [round(value / interval) for value in fit_intervals]
+        if any(
+            step < 1
+            or step > MAX_GRID_STEP
+            and not (
+                _is_exact_native_interval(value)
+                and step == MAX_GRID_STEP + 1
+            )
+            for value, step in zip(fit_intervals, grid_steps)
+        ):
             continue
         if any(
             abs(value - step * interval) > FIT_TOLERANCE_BEATS
-            for value, step in zip(raw_intervals, grid_steps)
+            for value, step in zip(fit_intervals, grid_steps)
         ):
             continue
         if any(

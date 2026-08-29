@@ -135,3 +135,33 @@ def test_der_schneid_flick_anchors_following_twelfth_division():
         }
     )
     assert values == pytest.approx([376 + index / 3 for index in range(7)])
+
+
+def test_doll_twelfth_twenty_fourth_native_eighth_transition():
+    chart = parse_chart("chart/db Doll.json")
+    fit_official_divisions(chart)
+    values = sorted(
+        {
+            map_line_beat(line, item.start_time_beat)
+            for line in chart.judge_line_list
+            for item in line.notes
+            if item.type in (1, 2)
+            and 184 <= map_line_beat(line, item.start_time_beat) <= 185
+        }
+    )
+    assert values == pytest.approx([184.0, 184 + 1 / 3, 184.5, 185.0])
+
+
+def test_doll_twenty_fourth_before_integer_after_correct_twelfth():
+    chart = parse_chart("chart/db Doll.json")
+    fit_official_divisions(chart)
+    values = sorted(
+        {
+            map_line_beat(line, item.start_time_beat)
+            for line in chart.judge_line_list
+            for item in line.notes
+            if item.type in (1, 2)
+            and 82 <= map_line_beat(line, item.start_time_beat) <= 83
+        }
+    )
+    assert values == pytest.approx([82.0, 82 + 1 / 3, 82 + 5 / 6, 83.0])
