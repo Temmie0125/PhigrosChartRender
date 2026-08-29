@@ -7,7 +7,9 @@ import shutil
 import tempfile
 import time
 import uuid
+from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -191,7 +193,26 @@ class JobManager:
 
 
 manager = JobManager()
-app = FastAPI(title="Phigros Preview Renderer API", version="1.0.0")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # 结果只存在本地临时目录；重启后所有旧任务均视为无效。
+    manager.root.mkdir(parents=True, exist_ok=True)
+    for child in manager.root.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
+    try:
+        yield
+    finally:
+        manager.cleanup()
+
+
+app = FastAPI(
+    title="Phigros Preview Renderer API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 _cors_origins = [
     origin.strip()
     for origin in os.environ.get(
@@ -206,20 +227,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    # 结果只存在本地临时目录；重启后所有旧任务均视为无效。
-    manager.root.mkdir(parents=True, exist_ok=True)
-    for child in manager.root.iterdir():
-        if child.is_dir():
-            shutil.rmtree(child, ignore_errors=True)
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    manager.cleanup()
 
 
 def _response(job: Job) -> JobResponse:
