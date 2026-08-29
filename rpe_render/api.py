@@ -23,6 +23,7 @@ from .constants import (
     BACKGROUND_BRIGHTNESS,
     FIT_OFFICIAL_DIVISIONS,
     SMART_COLUMN_BEATS,
+    COLUMN_BEATS,
 )
 from .package_loader import ChartPackageError, load_chart_input
 from .service import render_source
@@ -41,6 +42,7 @@ class RenderOptions(BaseModel):
     background_brightness: float = Field(BACKGROUND_BRIGHTNESS, ge=0.0, le=2.0)
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS
     smart_column_beats: bool = SMART_COLUMN_BEATS
+    column_beats: int = Field(COLUMN_BEATS, ge=16, le=128, multiple_of=4)
 
 
 class ChartMetadataResponse(BaseModel):
@@ -164,6 +166,7 @@ class JobManager:
                 background_brightness=job.options.background_brightness,
                 fit_official_divisions=job.options.fit_official_divisions,
                 smart_column_beats=job.options.smart_column_beats,
+                column_beats=job.options.column_beats,
             )
             result = job.work_dir / f"preview.{job.options.format}"
             result.write_bytes(data)
@@ -250,6 +253,7 @@ async def create_job(
     background_brightness: float = Form(BACKGROUND_BRIGHTNESS),
     fit_official_divisions: bool = Form(FIT_OFFICIAL_DIVISIONS),
     smart_column_beats: bool = Form(SMART_COLUMN_BEATS),
+    column_beats: int = Form(COLUMN_BEATS, ge=16, le=128, multiple_of=4),
 ) -> JobResponse:
     manager.check_rate(request.client.host if request.client else "unknown")
     options = RenderOptions(
@@ -265,6 +269,7 @@ async def create_job(
         background_brightness=background_brightness,
         fit_official_divisions=fit_official_divisions,
         smart_column_beats=smart_column_beats,
+        column_beats=column_beats,
     )
     return _response(await manager.create(file, options))
 

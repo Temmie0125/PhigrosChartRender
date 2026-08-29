@@ -16,7 +16,7 @@
 
 ## 功能特性
 
-- **下落式时间轴**：时间从下往上递增，每 64 拍（16 小节）为一栏，超长谱面自动横向分栏
+- **下落式时间轴**：时间从下往上递增，默认按谱面长度自动调节每栏拍数（16–128，每 4 拍一档），超长谱面自动横向分栏
 - **完整缓动支持**：29 种标准缓动 + 缓动截取（easingLeft/Right）+ 贝塞尔曲线缓动，判定线 X 坐标按 4 层事件叠加计算
 - **Note 贴图渲染**：Tap / Drag / Flick / Hold 使用原版贴图，多押自动切换高亮（HL）贴图
 - **Hold 渲染**：Body 竖直拉伸、Head/End 贴图、运动轨迹曲线（仅持续期内存在实际位移时渲染），跨栏自动分段；Body 向 Head/End 贴图内侧延伸重叠拼接，消除接缝（与游戏内一致）
@@ -59,8 +59,9 @@ python -m rpe_render chart.json --background art.png -o output.jpg --format jpg
 # 对 RPE 谱面显式开启实验性官谱分音拟合（官谱会自动启用）
 python -m rpe_render chart.json --fit-official-divisions
 
-# 按谱面长度智能选择每栏拍数，使输出比例接近 16:9（覆盖 COLUMN_BEATS）
-python -m rpe_render chart.json --smart-column-beats
+# 默认自动选择每栏拍数；也可固定为 16~128 且为 4 的倍数
+python -m rpe_render chart.json --column-beats auto
+python -m rpe_render chart.json --column-beats 64
 
 # 常用参数组合
 python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
@@ -79,7 +80,7 @@ python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
 | `--preview-bg-alpha` | 谱面预览区半透明黑色底色透明度（0.0 关闭 ~ 1.0） | 0.55 |
 | `--track-bg-alpha` | 每条 Note 轨道区域额外加深透明度（0.0 关闭 ~ 1.0） | 0.75 |
 | `--fit-official-divisions` | 启用官谱分音拟合（实验性，仅 Tap/Hold） | 关闭 |
-| `--smart-column-beats` | 按谱面总拍数自动选择每栏拍数，使最终图像比例接近 16:9；覆盖 `COLUMN_BEATS` | 关闭 |
+| `--column-beats` | 每栏拍数：`auto` 智能选择，或指定 16–128 且为 4 的倍数 | `auto` |
 
 输入为 PEZ/ZIP 时，程序会安全解包并定位曲绘；不会修改原始压缩包。
 谱面包信息文件按以下顺序回退：`info.txt` → 与谱面 JSON 同名的 `.txt` → 包内唯一 `.txt`。
@@ -111,8 +112,8 @@ python -m rpe_render chart.json --config my_settings.json
 - 未知键与类型不匹配的键会被忽略并发出警告；以 `_` 开头的键视为注释
 - 查找顺序：`--config` 参数 > 环境变量 `RPE_RENDER_CONFIG` > 当前目录下 `render_config.json`
 - 参数优先级：命令行参数 > 配置文件 > 代码默认值
-- `FIT_OFFICIAL_DIVISIONS` 默认 `false`，`SMART_COLUMN_BEATS` 默认 `false`，`NOTE_BOMB_RENDER_LIMIT` 默认 `4`
-- 开启 `SMART_COLUMN_BEATS`（或命令行 `--smart-column-beats`、WebUI 高级设置）后，渲染器根据谱面最大拍数选择每栏拍数，并覆盖固定的 `COLUMN_BEATS`；关闭时保持固定分栏行为。
+- `FIT_OFFICIAL_DIVISIONS` 默认 `false`，`SMART_COLUMN_BEATS` 默认 `true`，`NOTE_BOMB_RENDER_LIMIT` 默认 `4`
+- `SMART_COLUMN_BEATS` 开启时，渲染器会在 16–128 拍间以 4 拍为一档自动选择每栏拍数；关闭时使用固定的 `COLUMN_BEATS`。命令行通过 `--column-beats auto|数值` 选择模式。
 - 测试假定默认配置运行（仓库内不创建 `render_config.json` 时行为不变）
 
 日志级别默认 `WARNING`，可通过环境变量开启调试：
@@ -131,7 +132,8 @@ render(RenderConfig(
     background_path="art.png",   # 可选
     output_path="preview.png",
     notes_dir="resources/notes",
-    smart_column_beats=False,      # 按谱面长度自动调节每栏拍数，默认关闭
+    smart_column_beats=True,       # 按谱面长度自动调节每栏拍数，默认开启
+    column_beats=64,               # 关闭自动调节时使用，范围 16~128，步长 4
     dpi=150,
     preview_bg_alpha=0.55,       # 预览区半透明黑底色透明度（0.0~1.0）
     track_bg_alpha=0.75,         # 轨道区域额外加深透明度（0.0~1.0）
@@ -174,9 +176,9 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 
 前端会先调用 `POST /api/v1/charts/metadata` 读取谱面元数据，再将用户编辑的
 `name`、`charter`、`level`、`composer` 作为表单字段提交到 `POST /api/v1/jobs`。
-任务还支持 `format`（`png`/`jpg`）、`dpi`、`preview_bg_alpha`、`track_bg_alpha`、
-`background_blur_sigma`、`background_brightness`、`fit_official_divisions` 与 `smart_column_beats`；这些参数属于高级设置，
-通常应保持默认值。
+任务还支持 `format`（`png`/`jpg`）、`smart_column_beats`、`column_beats`、`dpi`、
+`preview_bg_alpha`、`track_bg_alpha`、`background_blur_sigma`、`background_brightness` 与
+`fit_official_divisions`。Web UI 将输出格式和每栏拍数作为基础配置，其余渲染参数位于高级设置。
 
 `FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可为 RPE 谱面显式开启实验性的分音拟合，
 默认关闭；官谱检测到后会自动开启。它只调整 Tap/Hold 起始时间，Drag/Flick 不参与拟合。
@@ -195,7 +197,8 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 | `background_blur_sigma` | `15` | 曲绘高斯模糊强度，0–100 |
 | `background_brightness` | `0.75` | 曲绘亮度，0–2 |
 | `fit_official_divisions` | `false` | 实验性官谱分音拟合 |
-| `smart_column_beats` | `false` | 按谱面总拍数自动选择每栏拍数，使画布比例接近 16:9；覆盖 `COLUMN_BEATS` |
+| `smart_column_beats` | `true` | 自动选择每栏拍数，使画布比例尽量接近 16:9 |
+| `column_beats` | `64` | 关闭自动选择时的每栏拍数，16–128 且为 4 的倍数 |
 | `name` / `charter` / `level` / `composer` | 空 | 覆盖底部信息栏对应字段 |
 
 `POST /api/v1/charts/metadata` 只解析并返回四项可编辑元数据，不创建渲染任务。

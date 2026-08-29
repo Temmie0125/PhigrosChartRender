@@ -25,6 +25,10 @@ from .models import ChartData, ColumnInfo, JudgeLineData, NoteData
 
 logger = logging.getLogger("rpe_render")
 
+COLUMN_BEATS_MIN = 16
+COLUMN_BEATS_MAX = 128
+COLUMN_BEATS_STEP = 4
+
 
 def compute_smart_column_beats(max_beat: float) -> int:
     """选择使画布宽高比尽量接近 16:9 的每栏拍数。
@@ -34,11 +38,14 @@ def compute_smart_column_beats(max_beat: float) -> int:
     最小者。该函数只依赖谱面总拍数，不改变默认固定分栏行为。
     """
     total = max(float(max_beat), 0.0)
-    max_candidate = max(4, int(ceil(total)))
-    candidates = range(4, max_candidate + 1, 4)
+    candidates = range(
+        COLUMN_BEATS_MIN,
+        COLUMN_BEATS_MAX + 1,
+        COLUMN_BEATS_STEP,
+    )
 
     target = 16.0 / 9.0
-    best = 4
+    best = COLUMN_BEATS_MIN
     best_error = float("inf")
     for beats in candidates:
         columns = max(1, int(ceil(total / beats)))

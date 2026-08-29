@@ -18,6 +18,13 @@ from rpe_render.renderer import RenderConfig, render
 
 
 class TestRenderIntegration:
+    def test_column_beats_validation(self):
+        assert RenderConfig(chart_path="x.json").smart_column_beats is True
+        assert RenderConfig(chart_path="x.json", column_beats=16).column_beats == 16
+        assert RenderConfig(chart_path="x.json", column_beats=128).column_beats == 128
+        with pytest.raises(ValueError, match="column_beats"):
+            RenderConfig(chart_path="x.json", column_beats=18)
+
     def test_jpeg_output(self, minimal_chart_path, notes_dir, tmp_path):
         out = tmp_path / "out.jpg"
         render(
@@ -38,6 +45,7 @@ class TestRenderIntegration:
             chart_path=minimal_chart_path,
             output_path=out,
             notes_dir=notes_dir,
+            smart_column_beats=False,
         )
         render(config)
 
@@ -340,6 +348,7 @@ class TestE2EVerticalLineChart:
                 chart_path=vertical_line_chart_path,
                 output_path=out,
                 notes_dir=notes_dir,
+                smart_column_beats=False,
             )
         )
         assert out.is_file()

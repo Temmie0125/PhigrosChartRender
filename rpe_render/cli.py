@@ -46,6 +46,7 @@ def parse_args(argv: list[str] | None = None):
         PREVIEW_BG_ALPHA,
         TRACK_BG_ALPHA,
         FIT_OFFICIAL_DIVISIONS,
+        COLUMN_BEATS,
         SMART_COLUMN_BEATS,
     )
     from .renderer import RenderConfig
@@ -121,11 +122,26 @@ def parse_args(argv: list[str] | None = None):
         default=FIT_OFFICIAL_DIVISIONS,
         help="实验性：拟合官谱常见的非 2 次幂分音（默认关闭）",
     )
+    def column_beats_value(value: str) -> str | int:
+        if value.lower() == "auto":
+            return "auto"
+        try:
+            beats = int(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError("应为 auto 或 16~128 的整数") from exc
+        if not 16 <= beats <= 128 or beats % 4:
+            raise argparse.ArgumentTypeError("自定义拍数须为 16~128 且是 4 的倍数")
+        return beats
+
     parser.add_argument(
-        "--smart-column-beats",
-        action="store_true",
-        default=SMART_COLUMN_BEATS,
-        help="按谱面长度智能调节每栏拍数，使画布比例接近 16:9",
+        "--column-beats",
+        type=column_beats_value,
+        default="auto" if SMART_COLUMN_BEATS else COLUMN_BEATS,
+        metavar="auto|16..128",
+        help=(
+            "每栏拍数：auto 按谱面长度智能选择，或指定 16~128 且为 4 的倍数"
+            f"（默认: {'auto' if SMART_COLUMN_BEATS else COLUMN_BEATS}）"
+        ),
     )
     args = parser.parse_args(argv)
     raw_args = list(argv) if argv is not None else sys.argv[1:]
@@ -150,7 +166,10 @@ def parse_args(argv: list[str] | None = None):
         preview_bg_alpha=args.preview_bg_alpha,
         track_bg_alpha=args.track_bg_alpha,
         fit_official_divisions=args.fit_official_divisions,
-        smart_column_beats=args.smart_column_beats,
+        smart_column_beats=args.column_beats == "auto",
+        column_beats=(
+            COLUMN_BEATS if args.column_beats == "auto" else args.column_beats
+        ),
     )
 
 
@@ -193,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
                 track_bg_alpha=config.track_bg_alpha,
                 fit_official_divisions=config.fit_official_divisions,
                 smart_column_beats=config.smart_column_beats,
+                column_beats=config.column_beats,
             )
             Path(config.output_path).write_bytes(image)
         else:

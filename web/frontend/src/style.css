@@ -18,12 +18,12 @@ h2 { margin: 0; font-size: 16px; }
 .panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
 .panel-heading p { margin: 5px 0 0; font-size: 12px; }
 .loading { color: #71d8ff; font-size: 12px; }
-.metadata-grid, .advanced-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.metadata-grid, .basic-grid, .advanced-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 label { display: grid; gap: 7px; color: #d7eaf3; font-size: 12px; font-weight: 650; }
 input, select { width: 100%; padding: 10px 11px; color: inherit; background: #091923; border: 1px solid #385e70; border-radius: 8px; font: inherit; font-weight: 400; outline: none; }
 input:focus, select:focus { border-color: #68d5ff; box-shadow: 0 0 0 3px #54c8ed22; }
 input:disabled { opacity: .55; }
-.format-panel > label { max-width: 280px; }
+.basic-grid label { align-content: start; }
 .advanced { margin: 18px 0 0; border-top: 1px solid #294756; }
 .advanced summary { display: flex; align-items: center; gap: 12px; padding: 16px 2px; cursor: pointer; color: #d7eaf3; font-weight: 700; list-style-position: inside; }
 .advanced summary small { font-weight: 400; }
@@ -47,4 +47,4 @@ button.primary:disabled { opacity: .45; cursor: not-allowed; }
 .progress i { display: block; height: 100%; border-radius: inherit; background: #67d4fb; transition: width .3s ease; }
 .result img { display: block; max-width: 100%; max-height: 70vh; margin: 16px auto; border: 1px solid #355b6c; border-radius: 8px; }
 .download { margin-top: 4px; }
-@media (max-width: 640px) { .metadata-grid, .advanced-grid { grid-template-columns: 1fr; } .card { border-radius: 18px; } .advanced summary { align-items: flex-start; flex-direction: column; gap: 4px; } }
+@media (max-width: 640px) { .metadata-grid, .basic-grid, .advanced-grid { grid-template-columns: 1fr; } .card { border-radius: 18px; } .advanced summary { align-items: flex-start; flex-direction: column; gap: 4px; } }

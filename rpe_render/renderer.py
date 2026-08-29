@@ -93,6 +93,7 @@ class RenderConfig:
         background_brightness: float = BACKGROUND_BRIGHTNESS,
         fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
         smart_column_beats: bool = SMART_COLUMN_BEATS,
+        column_beats: int = COLUMN_BEATS,
     ):
         self.chart_path = chart_path
         self.background_path = background_path
@@ -109,6 +110,9 @@ class RenderConfig:
         self.background_brightness = min(max(float(background_brightness), 0.0), 2.0)
         self.fit_official_divisions = bool(fit_official_divisions)
         self.smart_column_beats = bool(smart_column_beats)
+        self.column_beats = int(column_beats)
+        if not 16 <= self.column_beats <= 128 or self.column_beats % 4:
+            raise ValueError("column_beats must be a multiple of 4 between 16 and 128")
 
 
 def _normalize_output_format(
@@ -215,7 +219,7 @@ def render(config: RenderConfig) -> None:
     column_beats = (
         compute_smart_column_beats(max_beat)
         if config.smart_column_beats
-        else COLUMN_BEATS
+        else config.column_beats
     )
     if config.smart_column_beats:
         logger.info("Smart column beats selected: %s", column_beats)

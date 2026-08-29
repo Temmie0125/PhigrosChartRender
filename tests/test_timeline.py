@@ -59,7 +59,7 @@ class TestComputeColumns:
 class TestSmartColumnBeats:
     def test_returns_aligned_positive_value(self):
         value = compute_smart_column_beats(200.0)
-        assert value >= 4
+        assert 16 <= value <= 128
         assert value % 4 == 0
 
     def test_improves_ratio_against_fixed_default_for_long_chart(self):

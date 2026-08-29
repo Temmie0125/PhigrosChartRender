@@ -2,7 +2,7 @@
   "_说明": "复制本文件为 render_config.json（或通过 --config 指定路径）即可生效，无需修改代码。每个键对应 constants.py 中的一个常量名（大小写不敏感），值为新默认值；未知键与类型不匹配的键会被忽略并告警；以 _ 开头的键为注释，不生效；NOTE_IMAGE_MAP（贴图文件名映射）不在可配置范围内。优先级: 命令行参数 > 配置文件 > 代码默认值。",
   "BEAT_HEIGHT_PX": 96,
   "COLUMN_BEATS": 64,
-  "SMART_COLUMN_BEATS": false,
+  "SMART_COLUMN_BEATS": true,
   "COLUMN_WIDTH": 450,
   "COLUMN_GAP": 150,
   "SIDE_MARKER_PADDING_PX": 64.0,
