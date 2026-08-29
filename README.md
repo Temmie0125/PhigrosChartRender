@@ -1,4 +1,12 @@
-# Phigros谱面配置预览图生成器
+# <p align="center">Phigros谱面配置预览图生成器
+
+<p align="center">导入谱面或谱面包，一键生成谱面配置预览图
+
+<p align="center">
+  <img alt="GitHub issues" src="https://img.shields.io/github/issues/Temmie0125/PhigrosChartRender?style=flat-square"/>
+  <img alt="GitHub license" src="https://img.shields.io/github/license/Temmie0125/PhigrosChartRender?style=flat-square"/>
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/Temmie0125/PhigrosChartRender?style=social"/>
+</p>
 
 输入 RPE（Re:PhiEdit）/ 官谱谱面 JSON、PEZ 或 ZIP 谱面包，输出纵向时间轴式的谱面预览图。
 所有判定线的音符会映射到统一主时间轴，直观展示音符分布、密度变化、多押情况与 Hold 轨迹。
