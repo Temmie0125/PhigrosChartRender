@@ -3,6 +3,9 @@
 Web UI 使用 React + Vite，后端使用 FastAPI 提供异步渲染任务。前端不直接解析谱面，
 而是先上传文件读取元数据，再创建渲染任务。
 
+谱面包曲绘按 JSON `META.background` → 信息文件 `Picture:` → 包内唯一
+PNG/JPG/JPEG 的顺序回退；全部不可用时才返回“未找到曲绘”。
+
 ## 本地启动
 
 在项目根目录安装 Python 依赖并启动 API：

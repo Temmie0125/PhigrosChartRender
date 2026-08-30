@@ -85,7 +85,7 @@ python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
 输入为 PEZ/ZIP 时，程序会安全解包并定位曲绘；不会修改原始压缩包。
 谱面包信息文件按以下顺序回退：`info.txt` → 与谱面 JSON 同名的 `.txt` → 包内唯一 `.txt`。
 其中 `Name`、`Level`、`Composer`、`Charter` 会作为底部信息栏默认元数据，显式指定的元数据优先。
-官谱包没有资源声明时，曲绘优先使用包内唯一 PNG/JPG/JPEG，再回退到信息文件中的 `Picture:`。
+谱面 JSON 声明的曲绘不可用时，会依次回退到信息文件中的 `Picture:` 和包内唯一的 PNG/JPG/JPEG。
 
 > **关于官谱适配与分音拟合：**
 > 官谱 JSON 的时间单位为各判定线 BPM 下的 1/32 拍，Note type 顺序为 Tap/Drag/Hold/Flick，且不同判定线可以使用不同 BPM。渲染器会将这些时间统一映射到主时间轴，并将官谱横向坐标按比例映射到 RPE 的 `[-675, 675]` 范围。
@@ -226,9 +226,8 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 - 根目录只有一个 JSON 时直接使用；多个 JSON 时必须由信息文件的 `Chart:` 声明。
 - 信息文件按 `info.txt` → 与谱面 JSON 同名的 `.txt` → 包内唯一 `.txt` 回退选择。
 - `Name`、`Level`、`Composer`、`Charter` 用于补充官谱缺失的 JSON `META`；JSON 中非空字段优先。
-- RPE 曲绘优先读取 JSON 的 `META.background`，其次读取信息文件的 `Picture:`。
-- 官谱没有资源声明时，优先使用包内唯一 PNG/JPG/JPEG 图片，其次使用信息文件的 `Picture:`。
-- 声明的曲绘不存在或不是 PNG/JPG/JPEG 时返回“未找到曲绘”。
+- 谱面包曲绘依次读取 JSON 的 `META.background`、信息文件的 `Picture:`、包内唯一 PNG/JPG/JPEG 图片。
+- 前一项声明不存在、路径无效或不是支持的图片格式时继续回退；全部不可用或包内存在多张未声明图片时返回“未找到曲绘”。
 - 声明路径**区分大小写**，**允许空格**，**禁止系统保留字符**和**目录穿越**。
 
 ### 前端

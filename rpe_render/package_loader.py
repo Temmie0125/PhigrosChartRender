@@ -123,63 +123,46 @@ def _read_meta_background(chart_path: Path) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def _is_official_chart(chart_path: Path) -> bool:
-    """轻量识别官谱结构，供谱面包资源解析使用。"""
-    try:
-        raw = json.loads(chart_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return False
-    if not isinstance(raw, dict) or "BPMList" in raw or "META" in raw:
-        return False
-    if "formatVersion" in raw or "formatversion" in raw:
-        return True
-    lines = raw.get("judgeLineList")
-    return isinstance(lines, list) and any(
-        isinstance(line, dict)
-        and ("notesAbove" in line or "notesBelow" in line)
-        for line in lines
-    )
-
-
 def _resolve_picture(
     root: Path,
     chart_path: Path,
     info: dict[str, str],
     *,
     strict: bool,
-    allow_official_unique: bool = False,
+    allow_unique: bool = False,
 ) -> Path | None:
-    official = _is_official_chart(chart_path)
-    # 官谱没有资源声明：若包体内只有一个可用图片资源，优先使用它；
-    # 否则再回退到 info.txt 的 Picture 指定。
-    if official and allow_official_unique:
+    image_suffixes = {".png", ".jpg", ".jpeg"}
+    root_resolved = root.resolve()
+
+    # 每个声明独立尝试，避免 JSON 中过期的文件名阻断 info.txt 回退。
+    for declared in (_read_meta_background(chart_path), info.get("Picture")):
+        if not declared:
+            continue
+        try:
+            relative = _safe_relative(declared)
+        except PackageFormatError:
+            continue
+        picture = (root / relative).resolve()
+        if (
+            root_resolved in picture.parents
+            and picture.is_file()
+            and picture.suffix.lower() in image_suffixes
+        ):
+            return picture
+
+    # 谱面包声明均不可用时，只有包内图片唯一才能无歧义地回退。
+    if allow_unique:
         pictures = sorted(
-            p for p in root.rglob("*")
-            if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg"}
+            path
+            for path in root.rglob("*")
+            if path.is_file() and path.suffix.lower() in image_suffixes
         )
         if len(pictures) == 1:
             return pictures[0]
-    declared = _read_meta_background(chart_path) or info.get("Picture")
-    if not declared:
-        if strict:
-            raise MissingPictureError("未找到曲绘")
-        return None
-    try:
-        relative = _safe_relative(declared)
-    except PackageFormatError as exc:
-        if strict:
-            raise MissingPictureError("未找到曲绘") from exc
-        return None
-    picture = (root / relative).resolve()
-    if root.resolve() not in picture.parents or not picture.is_file():
-        if strict:
-            raise MissingPictureError("未找到曲绘")
-        return None
-    if picture.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
-        if strict:
-            raise MissingPictureError("未找到曲绘")
-        return None
-    return picture
+
+    if strict:
+        raise MissingPictureError("未找到曲绘")
+    return None
 
 
 def _select_info_file(
@@ -234,7 +217,7 @@ def _build_input(
         chart_path,
         info,
         strict=strict_picture,
-        allow_official_unique=True,
+        allow_unique=True,
     )
     # 官谱 JSON 通常不含 META；info.txt 是谱面包的元数据来源。
     metadata = {
