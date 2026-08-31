@@ -197,7 +197,7 @@ def render_markers(
         if col_index < 0 or col_index >= len(columns):
             continue
         col = columns[int(col_index)]
-        y = _beat_to_y(beat, int(col_index))
+        y = _beat_to_y(beat, int(col_index), column_beats)
         ax.text(
             col.pixel_right + MARKER_MARGIN_PX,
             y,

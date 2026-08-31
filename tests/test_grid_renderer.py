@@ -171,6 +171,36 @@ class TestEdgeAlignment:
         assert len(bottom_markers) == 1
         assert bottom_markers[0].get_va() == "bottom"
 
+    def test_count_markers_use_actual_smart_column_beats(self, ax):
+        column_beats = 36.0
+        columns = [
+            ColumnInfo(
+                index=index,
+                beat_start=index * column_beats,
+                beat_end=(index + 1) * column_beats,
+                pixel_left=index * 600.0,
+                pixel_right=index * 600.0 + 450.0,
+                pixel_bottom=0.0,
+                pixel_top=column_beats * BEAT_HEIGHT_PX,
+                column_beats=column_beats,
+            )
+            for index in range(3)
+        ]
+
+        render_markers(ax, columns, [])
+
+        count_positions = {
+            (text.get_position()[0], text.get_position()[1])
+            for text in ax.texts
+            if text.get_text() == "0"
+        }
+        assert (columns[1].pixel_right + MARKER_MARGIN_PX, 0.0) in count_positions
+        assert (
+            columns[1].pixel_right + MARKER_MARGIN_PX,
+            4.0 * BEAT_HEIGHT_PX,
+        ) in count_positions
+        assert (columns[2].pixel_right + MARKER_MARGIN_PX, 0.0) in count_positions
+
     def test_overlap_label_next_to_note(self, ax):
         # 同一开始时间、原始 X 重合的 Note 组标注 "×n"，写在 Note 右侧（栏内）
         notes = [
