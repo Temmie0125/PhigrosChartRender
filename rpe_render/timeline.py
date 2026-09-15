@@ -107,6 +107,10 @@ def compute_columns(
     # 提供了区域宽度时按需放大到 MARGIN_LEFT + 宽度
     gaps = [0.0] * num_columns
     for index in affected:
+        # 上游按 Hold 的 end_beat 取栏，拍数恰为栏边界时会多算出
+        # num_columns 这一栏；该栏不存在，直接跳过。
+        if not 0 <= index < num_columns:
+            continue
         gaps[index] = AFFECTED_AREA_EXTRA_GAP_PX
         if column_area_widths and index in column_area_widths:
             gaps[index] = max(

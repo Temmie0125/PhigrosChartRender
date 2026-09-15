@@ -173,6 +173,31 @@ class TestBuildAffectedSegments:
         assert len(segs) == 1
         assert affected_column_indices(segs) == {0, 1}
 
+    def test_hold_end_at_canvas_boundary_clamped(self):
+        # 回归：end_beat 恰为画布末尾（440 = 11 栏 × 40 拍）的 Hold，floor
+        # 除法会多算出不存在的栏 11；提供 max_columns 时必须钳进最后一栏
+        infos = [
+            make_info(420.0, angle=80.0, note_type=2, end_beat=440.0, column=10)
+        ]
+        segs = build_affected_segments(infos)
+        assert len(segs) == 1
+        assert affected_column_indices(segs, 40.0, max_columns=11) == {10}
+        assert set(compute_affected_area_widths(segs, 40.0, max_columns=11)) == {10}
+        # 不传 max_columns 时保持原始语义（索引可能越界，由调用方钳制）
+        assert affected_column_indices(segs, 40.0) == {10, 11}
+
+    def test_hold_segment_geometry_boundary_end_cap(self):
+        # 回归：end_beat == max_beat 的 Hold 在最后一栏必须判定 has_end，
+        # 否则受影响小区域缺失 End 贴图
+        from rpe_render.affected_area_renderer import _hold_segment_geometry
+
+        info = make_info(420.0, note_type=2, end_beat=440.0, column=10)
+        _, _, _, y_end, has_head, has_end = _hold_segment_geometry(
+            info, 10, 40.0, max_columns=11
+        )
+        assert has_head and has_end
+        assert y_end == pytest.approx(40 * BEAT_HEIGHT_PX)
+
 
 class TestRenderAffectedBoxes:
     @pytest.fixture()

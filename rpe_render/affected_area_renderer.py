@@ -128,23 +128,27 @@ def build_affected_segments(
 
 
 def affected_column_indices(
-    segments: list[AffectedSegment], column_beats: float = COLUMN_BEATS
+    segments: list[AffectedSegment],
+    column_beats: float = COLUMN_BEATS,
+    max_columns: int | None = None,
 ) -> set[int]:
     """受影响段覆盖的所有栏索引。
 
     每个 note 计入其 column；Hold 再按 end_beat 补齐跨过的所有栏。
+    max_columns 提供时，拍数恰为栏边界（如 end_beat == max_beat）或越出
+    画布的栏索引钳制进最后一栏，保证结果都在实际分栏范围内。
     """
     cols: set[int] = set()
     for seg in segments:
         for n in seg.notes:
             cols.add(n.column)
             if n.note.type == 2:
-                cols.update(
-                    range(
-                        int(n.beat // column_beats),
-                        int(n.end_beat // column_beats) + 1,
-                    )
-                )
+                start_col = int(n.beat // column_beats)
+                end_col = int(n.end_beat // column_beats)
+                if max_columns is not None:
+                    start_col = min(start_col, max_columns - 1)
+                    end_col = min(end_col, max_columns - 1)
+                cols.update(range(start_col, end_col + 1))
     return cols
 
 
@@ -320,6 +324,7 @@ def render_affected_boxes(
 def compute_affected_area_widths(
     segments: list[AffectedSegment],
     column_beats: float = COLUMN_BEATS,
+    max_columns: int | None = None,
 ) -> dict[int, float]:
     """每个受影响栏的小区域宽度：栏内受影响 note 的真实横向占用宽度。
 
@@ -327,13 +332,19 @@ def compute_affected_area_widths(
     （GAME_X 全宽 1350 单位 → COLUMN_WIDTH px）换算 + 单个图标宽度。
     跨栏 Hold 按其覆盖的每栏计入（各段 X 均由 positionX 决定）。
 
+    Args:
+        segments: 受影响段列表
+        column_beats: 每栏拍数
+        max_columns: 实际分栏数；提供时栏索引钳制进范围内（语义同
+            affected_column_indices）
+
     Returns:
         {栏索引: 区域宽度(px)}，仅含有关注 note 的受影响栏。
     """
     scale = COLUMN_WIDTH / (GAME_X_MAX - GAME_X_MIN)
     widths: dict[int, float] = {}
     for col_index in sorted(
-        affected_column_indices(segments, column_beats)
+        affected_column_indices(segments, column_beats, max_columns)
     ):
         px = [
             n.note.position_x
@@ -368,8 +379,12 @@ def _hold_segment_geometry(
     note_info: NoteRenderInfo,
     col_index: int,
     column_beats: float = COLUMN_BEATS,
+    max_columns: int | None = None,
 ) -> tuple[float, float, float, float, bool, bool]:
     """Hold 在指定栏内的分段几何（仿照 hold_renderer.prepare_hold_render_info）。
+
+    max_columns 提供时，拍数恰为栏边界（如 end_beat == max_beat）的栏索引
+    钳制进最后一栏，避免末栏段的 Head/End 判定落空。
 
     Returns:
         (seg_start, seg_end, y_head, y_end, has_head, has_end)
@@ -379,8 +394,13 @@ def _hold_segment_geometry(
     seg_end = min(note_info.end_beat, col_base + column_beats)
     y_head = (seg_start - col_base) * BEAT_HEIGHT_PX
     y_end = (seg_end - col_base) * BEAT_HEIGHT_PX
-    has_head = col_index == int(note_info.beat // column_beats)
-    has_end = col_index == int(note_info.end_beat // column_beats)
+    head_col = int(note_info.beat // column_beats)
+    end_col = int(note_info.end_beat // column_beats)
+    if max_columns is not None:
+        head_col = min(head_col, max_columns - 1)
+        end_col = min(end_col, max_columns - 1)
+    has_head = col_index == head_col
+    has_end = col_index == end_col
     return seg_start, seg_end, y_head, y_end, has_head, has_end
 
 
@@ -415,10 +435,11 @@ def _draw_hold_piece(
     area_x: Callable[[float], float],
     zorder: float,
     column_beats: float = COLUMN_BEATS,
+    max_columns: int | None = None,
 ) -> None:
     """区域内绘制 Hold 在该栏的一段（Head/End/Body，X 全部由 positionX 映射）。"""
     _, _, y_head, y_end, has_head, has_end = _hold_segment_geometry(
-        note_info, col_index, column_beats
+        note_info, col_index, column_beats, max_columns
     )
     hl = note_info.is_multitap
     cx = area_x(note_info.note.position_x)
@@ -511,11 +532,11 @@ def render_affected_areas(
     """
     column_beats = columns[0].column_beats
     affected_cols = sorted(
-        c
-        for c in affected_column_indices(segments, columns[0].column_beats)
-        if c < len(columns)
+        affected_column_indices(segments, column_beats, len(columns))
     )
-    area_widths = compute_affected_area_widths(segments, column_beats)
+    area_widths = compute_affected_area_widths(
+        segments, column_beats, len(columns)
+    )
     scale = COLUMN_WIDTH / (GAME_X_MAX - GAME_X_MIN)
 
     for col_index in affected_cols:
@@ -575,7 +596,7 @@ def render_affected_areas(
                             0,
                             lambda z, n=n: _draw_hold_piece(
                                 ax, image_loader, n, col_index, area_x, z,
-                                column_beats,
+                                column_beats, len(columns),
                             ),
                         )
                     )

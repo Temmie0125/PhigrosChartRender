@@ -252,6 +252,43 @@ class TestPrepareHoldInfo:
         prepared = prepare_hold_render_info([info], {}, compute_columns(70.0))
         assert prepared[0].trajectory_points is None
 
+    def test_end_beat_at_canvas_boundary(self):
+        # 回归：end_beat 恰为画布末尾（max_beat == 栏数×每栏拍数）时 floor
+        # 除法会指向不存在的下一栏；与 beat_to_pixel 约定一致，钳进最后一栏
+        info = make_info(60.0, 64.0)  # compute_columns(64) 仅 1 栏 [0, 64]
+        prepared = prepare_hold_render_info([info], {}, compute_columns(64.0))
+
+        assert len(prepared) == 1
+        seg = prepared[0]
+        assert seg.column_index == 0
+        assert seg.has_head and seg.has_end
+        assert seg.end_y == pytest.approx(64 * BEAT_HEIGHT_PX + 27.0)
+
+    def test_cross_column_end_beat_at_canvas_boundary(self):
+        # 回归（CROSSSOUL 案例）：380→440 拍、每栏 40 拍共 11 栏 [0, 440)，
+        # end_beat == 440 越过末栏 → 末段完整钳入最后一栏
+        info = make_info(380.0, 440.0)
+        columns = compute_columns(440.0, column_beats=40)
+        prepared = prepare_hold_render_info([info], {}, columns)
+
+        assert [seg.column_index for seg in prepared] == [9, 10]
+        assert prepared[0].has_head and not prepared[0].has_end
+        assert prepared[1].has_end and not prepared[1].has_head
+        # 末段 End 贴图中心在栏顶（beat 440 == 栏 10 的上边界）
+        assert prepared[1].end_y == pytest.approx(40 * BEAT_HEIGHT_PX + 27.0)
+
+    def test_start_beat_beyond_canvas_clamped(self):
+        # 反向 Hold（start > end）且 start 越出画布：段按栏边界截断，不崩溃
+        info = make_info(70.0, 64.0)
+        prepared = prepare_hold_render_info([info], {}, compute_columns(64.0))
+
+        assert len(prepared) == 1
+        seg = prepared[0]
+        assert seg.has_head and seg.has_end
+        assert seg.head_y == pytest.approx(64 * BEAT_HEIGHT_PX - 27.0)
+        assert seg.end_y == pytest.approx(64 * BEAT_HEIGHT_PX + 27.0)
+        assert seg.trajectory_points is None
+
 
 class TestRenderSegmentX:
     """跨栏尾段的 Body/End 必须渲染在段自身的栏内（回归测试）。"""

@@ -275,8 +275,10 @@ def render(config: RenderConfig) -> None:
     # 受影响段检测 → 受影响栏集合 → 各栏小区域宽度（真实间距占用）→ 分栏
     # （受影响栏右侧额外间距按区域宽度动态放大）
     segments = build_affected_segments(notes_info)
-    affected_columns = affected_column_indices(segments, column_beats)
-    column_area_widths = compute_affected_area_widths(segments, column_beats)
+    affected_columns = affected_column_indices(segments, column_beats, num_columns)
+    column_area_widths = compute_affected_area_widths(
+        segments, column_beats, num_columns
+    )
     columns = compute_columns(
         max_beat,
         affected_columns,

@@ -114,6 +114,13 @@ class TestComputeColumnsAffected:
     def test_empty_set_same_as_none(self):
         assert compute_columns(70.0, affected_columns=set()) == compute_columns(70.0)
 
+    def test_out_of_range_affected_columns_ignored(self):
+        # 回归：拍数恰为栏边界的 Hold 会给 affected_columns 带来越界索引
+        # （max_beat=64、每栏 64 拍 → 栏 1 不存在）；应跳过而非 IndexError
+        cols = compute_columns(64.0, affected_columns={0, 1})
+        assert len(cols) == 1
+        assert cols[0].pixel_gap_right == pytest.approx(AFFECTED_AREA_EXTRA_GAP_PX)
+
     def test_affected_column_dynamic_gap(self):
         # 小区域宽度超出默认预留时，该栏间距放大到 MARGIN_LEFT + 宽度
         cols = compute_columns(

@@ -180,8 +180,11 @@ def prepare_hold_render_info(
         HoldRenderInfo 列表（跨栏 Hold 会产生多个条目）
     """
     infos: list[HoldRenderInfo] = []
+    if not columns:
+        return infos
     column_beats = columns[0].column_beats
     column_top = float(column_beats * BEAT_HEIGHT_PX)
+    last_col = len(columns) - 1
 
     for info in hold_notes:
         # HL 贴图可能带有额外发光延伸，几何计算必须使用该音符实际采用
@@ -202,13 +205,17 @@ def prepare_hold_render_info(
 
         s, e = info.beat, info.end_beat
         factor = float(getattr(line, "bpm_factor", 1.0)) if line is not None else 1.0
-        col_s = int(s // column_beats)
-        col_e = int(e // column_beats)
+        # 拍数恰好落在画布末尾（如 end_beat == max_beat）时 floor 除法会指向
+        # 不存在的下一栏；与 renderer / beat_to_pixel 的约定一致，钳制进最后一栏。
+        col_s = min(int(s // column_beats), last_col)
+        col_e = min(int(e // column_beats), last_col)
 
         for col in range(col_s, col_e + 1):
             col_base = col * column_beats
-            seg_start = max(s, col_base)
-            seg_end = min(e, col_base + column_beats)
+            # 拍数越出画布（如反向 Hold 的 start 晚于全部 note 的 endTime）时
+            # 按栏边界截断，保证段起点不晚于段终点。
+            seg_start = min(max(s, col_base), col_base + column_beats)
+            seg_end = min(max(e, col_base), col_base + column_beats)
 
             y_head_seg = (seg_start - col_base) * BEAT_HEIGHT_PX
             y_end_seg = (seg_end - col_base) * BEAT_HEIGHT_PX
