@@ -17,7 +17,10 @@ from rpe_render.note_renderer import detect_multitap_groups_at_beats
 from rpe_render.timeline import compute_max_beat, map_line_beat
 
 
-def _event(start: float, end: float, value: float) -> EventData:
+def _event(
+    start: float, end: float, value: float, end_value: float | None = None
+) -> EventData:
+    """构造覆盖 [start, end] 拍的事件；给定 end_value 时为线性渐变。"""
     return EventData(
         bezier=False,
         bezier_points=[0.0, 0.0, 0.0, 0.0],
@@ -25,7 +28,7 @@ def _event(start: float, end: float, value: float) -> EventData:
         easing_right=1.0,
         easing_type=1,
         start=value,
-        end=value,
+        end=value if end_value is None else end_value,
         start_time=[int(start), 0, 1],
         end_time=[int(end), 0, 1],
         linkgroup=0,
@@ -97,7 +100,12 @@ def test_parent_pose_synchronizes_different_bpm_factors():
     # 子线 local beat=4、factor=2 对应主谱面 beat=8；父线 factor=1
     # 应在父线 beat=8 的状态求值，而不是错误地使用父线 beat=4。
     parent = _line(x=0.0, bpm_factor=1.0)
-    parent.event_layers[0].move_x_events = [_event(0, 4, 0.0), _event(8, 100, 80.0)]
+    # 第二条事件与第一条连续（无跳变），避免「生效瞬间取生效前值」干扰本用例；
+    # [4, 100] 内线性 0 → 100，使父线取 beat 4 与取 beat 8 的结果不同。
+    parent.event_layers[0].move_x_events = [
+        _event(0, 4, 0.0),
+        _event(4, 100, 0.0, end_value=100.0),
+    ]
     child = _line(father=0, x=10.0, bpm_factor=2.0)
     chart = ChartData(
         bpm_list=[BPMEvent(120.0, [0, 0, 1])],
@@ -106,7 +114,8 @@ def test_parent_pose_synchronizes_different_bpm_factors():
     )
 
     pose = judge_line_pose_at(chart, 1, 4.0)
-    assert pose.x == pytest.approx(90.0)
+    # 父线 beat 8 → 0 + 100·(8-4)/96；若误按父线 beat 4 求值则只有 10
+    assert pose.x == pytest.approx(10.0 + 100.0 * 4.0 / 96.0)
 
 
 def test_bpm_factor_expands_main_timeline():

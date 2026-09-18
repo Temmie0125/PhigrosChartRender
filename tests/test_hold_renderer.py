@@ -372,9 +372,11 @@ class TestSampleTrajectory:
         pts = sample_hold_trajectory(line, note, 60.0, 70.0, samples_per_beat=4, column_offset_px=0.0)
         assert len(pts) >= 3
         xs = [p[0] for p in pts]
-        assert xs[0] < xs[-1]  # 判定线从 -200 移动到 +200
-        assert len(xs) == len(set(xs)) - 0 or True  # 单调性由线性缓动保证
-        assert all(xs[i] <= xs[i + 1] for i in range(len(xs) - 1))
+        # 拍 60 恰是事件的生效瞬间：按生效前的值渲染（该线此前无事件 → 默认 0）
+        assert xs[0] == pytest.approx(x_to_pixel(0.0, 0.0))
+        # 其后各采样点随判定线从 -200 单调移动到 +200（轨迹产生弯折）
+        assert xs[-1] == pytest.approx(x_to_pixel(200.0, 0.0))
+        assert all(xs[i] <= xs[i + 1] for i in range(1, len(xs) - 1))
 
     def test_sample_count_matches_density(self):
         note = NoteData(type=2, start_time_beat=0, end_time_beat=4.5, position_x=0.0)

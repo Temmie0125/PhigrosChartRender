@@ -221,11 +221,33 @@ class TestCountMarkers:
         assert by_beat[64] == 1  # 第 2 栏
 
     def test_empty_notes(self):
+        # 无 Note 时各节点计数均为 0；节点覆盖到末栏几何顶边（拍 64）
         assert compute_count_markers([], max_beat=8.0) == [
-            (0.0, 0.0, 0),
-            (4.0, 0.0, 0),
-            (8.0, 0.0, 0),
+            (float(beat), 0.0, 0) for beat in range(0, 65, 4)
         ]
+
+    def test_column_top_edge_marked(self):
+        # 每栏顶边必须有计数刻度（与左侧拍号一致，旧实现缺失栏顶节点）
+        markers = compute_count_markers([], max_beat=128.0)
+        for col, top_beat in ((0.0, 64.0), (1.0, 128.0)):
+            assert (top_beat, col, 0) in markers
+
+    def test_column_boundary_marked_in_both_columns(self):
+        # 栏边界拍是上栏顶边、同时是下栏底边：两栏各标一次且计数相同
+        notes = [make_info(1, 64.0)]
+        markers = compute_count_markers(notes, max_beat=128.0)
+        boundary = [(col, count) for beat, col, count in markers if beat == 64.0]
+        assert boundary == [(0.0, 1), (1.0, 1)]
+
+    def test_counts_monotonic_and_column_major(self):
+        notes = [make_info(1, 1.0), make_info(1, 70.0)]
+        markers = compute_count_markers(notes, max_beat=128.0)
+        counts = [count for _, _, count in markers]
+        assert counts == sorted(counts)
+        # 按栏升序、栏内拍数升序产出
+        assert markers == sorted(markers, key=lambda m: (m[1], m[0]))
+        # 末栏顶边（拍 128）即全谱 Note 总数
+        assert markers[-1] == (128.0, 1.0, 2)
 
     def test_boundary_inclusive(self):
         # 恰好在 check_beat 上的音符应被计入（含）

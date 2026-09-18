@@ -76,26 +76,40 @@ def compute_count_markers(
     max_beat: float,
     column_beats: float = COLUMN_BEATS,
 ) -> list[tuple[float, float, int]]:
-    """计算每 4 拍的 Note 累计计数标记。
+    """计算每 4 拍的 Note 累计计数标记（含每栏顶边）。
 
     对每 4 拍的节点，统计从谱面开始到该时刻（含）的所有 Note 总数。
+    节点按栏生成：每栏自底边逐节点标记到顶边（含），栏号直接取该栏索引。
+    栏顶边与下一栏底边是同一拍，因此该拍会在两栏各标一次——与左侧拍号
+    标记在栏边界处的表现一致，保证每栏右缘的计数刻度完整（旧实现把栏顶
+    节点判给下一栏，导致它被画到下一栏底部、末栏更被直接丢弃）。
+
+    每栏拍数在配置与智能分栏下均为 4 的倍数，故栏顶边必然落在节点上。
 
     Returns:
-        [(beat, column_index, count), ...]
+        [(beat, column_index, count), ...]，按栏升序、栏内拍数升序
     """
     sorted_notes = sorted(notes, key=lambda n: n.beat)
+
+    column_beats = max(float(column_beats), 1e-6)
+    # 栏数与 compute_columns 保持一致：末栏顶边即时间轴末端
+    num_columns = 1 if max_beat <= 0 else int(ceil(max_beat / column_beats))
 
     markers: list[tuple[float, float, int]] = []
     note_idx = 0
     cumulative = 0
 
-    check_limit = ceil(max_beat)
-    for check_beat in range(0, check_limit + 1, COUNT_MARK_INTERVAL):
-        while note_idx < len(sorted_notes) and sorted_notes[note_idx].beat <= check_beat:
-            cumulative += 1
-            note_idx += 1
-        col = int(check_beat // column_beats)
-        markers.append((float(check_beat), float(col), cumulative))
+    for col in range(num_columns):
+        col_start = col * column_beats
+        for offset in range(0, int(column_beats) + 1, COUNT_MARK_INTERVAL):
+            check_beat = col_start + offset
+            while (
+                note_idx < len(sorted_notes)
+                and sorted_notes[note_idx].beat <= check_beat
+            ):
+                cumulative += 1
+                note_idx += 1
+            markers.append((float(check_beat), float(col), cumulative))
 
     return markers
 

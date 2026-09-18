@@ -157,6 +157,88 @@ class TestJudgeLineXMultiLayer:
         assert judge_line_x_at(line, 2.0) == 0.0
 
 
+class TestEventStartJump:
+    """事件生效瞬间取生效前的值（跳变在游戏内不可见）。"""
+
+    def test_jump_takes_value_before_event(self):
+        # [0,8] 值 0 → 100，[8,16] 值 300（拍 8 处从 100 跳到 300）
+        e1 = make_event(start=0.0, end=100.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
+        e2 = make_event(start=300.0, end=300.0, start_time=(8, 0, 1), end_time=(16, 0, 1))
+        line = make_line([[e1, e2], [], [], []])
+        assert judge_line_x_at(line, 8.0) == pytest.approx(100.0)  # 生效前值
+        # 生效瞬间之后立即按新事件插值
+        assert judge_line_x_at(line, 8.5) == pytest.approx(
+            300.0 + (300.0 - 300.0) * 0.0625
+        )
+
+    def test_jump_without_previous_event_uses_default(self):
+        # [4,8] 值 450：此前无事件 → 生效前值为判定线默认值 0
+        ev = make_event(start=450.0, end=450.0, start_time=(4, 0, 1), end_time=(8, 0, 1))
+        line = make_line([[ev], [], [], []])
+        assert judge_line_x_at(line, 4.0) == pytest.approx(0.0)
+        assert judge_line_x_at(line, 4.5) == pytest.approx(450.0)
+
+    def test_origin_exception_first_event_from_beat_zero(self):
+        # 首个事件自时间轴起点开始：此前没有已渲染画面，仍按事件自身取值
+        ev = make_event(start=180.0, end=180.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
+        line = make_rot_line([[ev], [], [], []])
+        assert judge_line_rotate_at(line, 0.0) == pytest.approx(180.0)
+
+    def test_continuous_chain_unchanged(self):
+        # 无跳变（前值恰为事件 start）时生效瞬间规则等价于空操作
+        e1 = make_event(start=0.0, end=100.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
+        e2 = make_event(start=100.0, end=0.0, start_time=(8, 0, 1), end_time=(16, 0, 1))
+        line = make_line([[e1, e2], [], [], []])
+        assert judge_line_x_at(line, 8.0) == pytest.approx(100.0)
+
+    def test_inside_event_still_eases(self):
+        # t 严格落在事件内部（非生效瞬间）→ 仍按缓动插值
+        e1 = make_event(start=0.0, end=100.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
+        e2 = make_event(start=300.0, end=500.0, start_time=(8, 0, 1), end_time=(16, 0, 1))
+        line = make_line([[e1, e2], [], [], []])
+        assert judge_line_x_at(line, 12.0) == pytest.approx(400.0)
+
+    def test_any_easing_type_triggers(self):
+        # 跳变判据与缓动类型无关
+        for easing_type in (1, 5, 20):  # linear / In Quad / Out Back
+            e1 = make_event(start=0.0, end=0.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
+            e2 = make_event(
+                start=300.0,
+                end=300.0,
+                start_time=(8, 0, 1),
+                end_time=(16, 0, 1),
+                easing_type=easing_type,
+            )
+            line = make_line([[e1, e2], [], [], []])
+            assert judge_line_x_at(line, 8.0) == pytest.approx(0.0)
+
+    def test_zero_duration_event_still_applies_immediately(self):
+        # 零时长事件保持「即时生效」：恒命中结束保持分支，不取生效前值
+        e1 = make_event(start=0.0, end=0.0, start_time=(0, 0, 1), end_time=(8, 0, 1))
+        step = make_event(
+            start=10.0, end=50.0, start_time=(8, 0, 1), end_time=(8, 0, 1)
+        )
+        line = make_rot_line([[e1, step], [], [], []])
+        assert judge_line_rotate_at(line, 8.0) == pytest.approx(50.0)
+
+    def test_multi_layer_only_matching_layer_falls_back(self):
+        # 仅命中层走生效前值，其它层不受影响
+        jump = make_event(start=100.0, end=100.0, start_time=(8, 0, 1), end_time=(16, 0, 1))
+        steady = make_event(start=10.0, end=30.0, start_time=(0, 0, 1), end_time=(16, 0, 1))
+        line = make_line([[jump], [steady], [], []])
+        # 层 0：生效前无事件 → 0.0；层 1：t=8 → 20.0
+        assert judge_line_x_at(line, 8.0) == pytest.approx(20.0)
+
+    def test_previous_event_still_running_used_if_not_ended(self):
+        # 生效前事件尚未结束时按该事件在 t 处插值（重叠事件的生效前状态）
+        overlapping = make_event(
+            start=0.0, end=200.0, start_time=(0, 0, 1), end_time=(16, 0, 1)
+        )
+        jump = make_event(start=900.0, end=900.0, start_time=(8, 0, 1), end_time=(12, 0, 1))
+        line = make_line([[overlapping, jump], [], [], []])
+        assert judge_line_x_at(line, 8.0) == pytest.approx(100.0)
+
+
 class TestJudgeLineRotate:
     """judge_line_rotate_at：4 层 rotateEvents 叠加，语义与 judge_line_x_at 一致。"""
 

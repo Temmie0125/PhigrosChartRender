@@ -201,6 +201,24 @@ class TestEdgeAlignment:
         ) in count_positions
         assert (columns[2].pixel_right + MARKER_MARGIN_PX, 0.0) in count_positions
 
+    def test_count_markers_cover_column_top_edge(self, ax):
+        # 每栏右缘在栏顶边（= 下一栏底边）也必须有计数刻度，与左侧拍号一致
+        columns = [make_column(0), make_column(1)]
+        render_markers(ax, columns, [])
+
+        for col in columns:
+            found = [
+                text
+                for text in ax.texts
+                if abs(
+                    text.get_position()[0] - (col.pixel_right + MARKER_MARGIN_PX)
+                ) < 1e-6
+                and abs(text.get_position()[1] - col.pixel_top) < 1e-6
+            ]
+            assert len(found) == 1
+            # 顶部文字向下生长，不被画布上缘裁剪
+            assert found[0].get_va() == "top"
+
     def test_overlap_label_next_to_note(self, ax):
         # 同一开始时间、原始 X 重合的 Note 组标注 "×n"，写在 Note 右侧（栏内）
         notes = [
