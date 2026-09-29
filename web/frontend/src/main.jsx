@@ -21,6 +21,8 @@ const EMPTY_METADATA = { name: '', charter: '', level: '', composer: '' }
 const MIN_PREVIEW_SCALE = 0.5
 const MAX_PREVIEW_SCALE = 4
 const PREVIEW_ZOOM_STEP = 0.25
+const CHART_EXTENSIONS = ['.json', '.pez', '.zip']
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg']
 
 function SectionHeading({ number, children }) {
   return <div className="section-header">
@@ -87,6 +89,10 @@ function App() {
   const [error, setError] = useState('')
   const [options, setOptions] = useState(DEFAULT_OPTIONS)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [backgroundFile, setBackgroundFile] = useState(null)
+  const [backgroundPreview, setBackgroundPreview] = useState(null)
+  const [dragOverZone, setDragOverZone] = useState(null)
+  const dragDepthRef = useRef({ upload: 0, preview: 0 })
   const metadataRequest = useRef(0)
   const previewRef = useRef(null)
   const dragRef = useRef(null)
@@ -108,7 +114,16 @@ function App() {
     return () => clearInterval(timer)
   }, [job])
 
-  async function loadMetadata(nextFile) {
+  function pickMetadataFields(fields) {
+    return {
+      name: fields.name || '',
+      charter: fields.charter || '',
+      level: fields.level || '',
+      composer: fields.composer || '',
+    }
+  }
+
+  async function loadMetadata(nextFile, infoOverlay = null) {
     const request = ++metadataRequest.current
     setMetadata(EMPTY_METADATA)
     setMetadataLoaded(false)
@@ -121,7 +136,9 @@ function App() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || '无法读取谱面元数据')
       if (request === metadataRequest.current) {
-        setMetadata({ name: data.name || '', charter: data.charter || '', level: data.level || '', composer: data.composer || '' })
+        const parsed = pickMetadataFields(data)
+        // 同批拖入的信息文件在谱面元数据之后回填（非空字段覆盖）。
+        setMetadata(infoOverlay ? { ...parsed, ...pickMetadataFields(infoOverlay) } : parsed)
         setMetadataLoaded(true)
       }
     } catch (err) {
@@ -131,11 +148,31 @@ function App() {
     }
   }
 
-  function applyFile(nextFile) {
+  async function loadInfoMetadata(infoFile) {
+    const body = new FormData()
+    body.append('file', infoFile)
+    const response = await fetch(`${API_BASE}/api/v1/charts/info`, { method: 'POST', body })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.detail || '无法解析信息文件')
+    return pickMetadataFields(data)
+  }
+
+  function mergeMetadataFields(fields) {
+    setMetadata(current => ({
+      name: fields.name || current.name,
+      charter: fields.charter || current.charter,
+      level: fields.level || current.level,
+      composer: fields.composer || current.composer,
+    }))
+  }
+
+  function applyFile(nextFile, infoOverlay = null) {
     setFile(nextFile)
     setJob(null)
+    // 曲绘跟随谱面：更换谱面时清除已选曲绘，避免误配到新谱面。
+    setBackgroundFile(null)
     if (nextFile) {
-      loadMetadata(nextFile)
+      loadMetadata(nextFile, infoOverlay)
     } else {
       metadataRequest.current += 1
       setMetadata(EMPTY_METADATA)
@@ -143,11 +180,85 @@ function App() {
     }
   }
 
-  function handleFileChange(event) { applyFile(event.target.files?.[0] || null) }
+  function handleFileChange(event) {
+    applyFile(event.target.files?.[0] || null)
+    event.target.value = ''
+  }
 
-  function handleDrop(event) {
+  function handleBackgroundChange(event) {
+    const next = event.target.files?.[0] || null
+    if (next) setBackgroundFile(next)
+    event.target.value = ''
+  }
+
+  function removeBackground(event) {
     event.preventDefault()
-    applyFile(event.dataTransfer.files?.[0] || null)
+    event.stopPropagation()
+    setBackgroundFile(null)
+  }
+
+  function classifyFiles(fileList) {
+    const result = { chart: null, image: null, info: null }
+    for (const item of fileList) {
+      const dot = item.name.lastIndexOf('.')
+      const ext = dot < 0 ? '' : item.name.slice(dot).toLowerCase()
+      if (!result.chart && CHART_EXTENSIONS.includes(ext)) result.chart = item
+      else if (!result.image && IMAGE_EXTENSIONS.includes(ext)) result.image = item
+      else if (!result.info && ext === '.txt') result.info = item
+    }
+    return result
+  }
+
+  async function handleDrop(event) {
+    event.preventDefault()
+    const { chart, image, info } = classifyFiles(event.dataTransfer.files || [])
+    if (!chart && !image && !info) {
+      setError('仅支持 JSON / PEZ / ZIP 谱面、PNG / JPG 曲绘或信息 TXT 文件')
+      return
+    }
+    setError('')
+    let infoFields = null
+    if (info) {
+      try {
+        infoFields = await loadInfoMetadata(info)
+      } catch (err) {
+        setError(err.message)
+      }
+    }
+    if (chart) {
+      applyFile(chart, infoFields)
+      if (image) setBackgroundFile(image)
+    } else if (image) {
+      setBackgroundFile(image)
+    } else if (infoFields) {
+      mergeMetadataFields(infoFields)
+    }
+  }
+
+  function syncDragZone() {
+    const depth = dragDepthRef.current
+    setDragOverZone(depth.upload > 0 ? 'upload' : depth.preview > 0 ? 'preview' : null)
+  }
+
+  function dragHandlers(zone) {
+    return {
+      onDragEnter: event => {
+        event.preventDefault()
+        dragDepthRef.current[zone] += 1
+        syncDragZone()
+      },
+      onDragOver: event => event.preventDefault(),
+      onDragLeave: event => {
+        event.preventDefault()
+        dragDepthRef.current[zone] = Math.max(0, dragDepthRef.current[zone] - 1)
+        syncDragZone()
+      },
+      onDrop: event => {
+        dragDepthRef.current = { upload: 0, preview: 0 }
+        syncDragZone()
+        handleDrop(event)
+      },
+    }
   }
 
   function updateMetadata(field, value) {
@@ -180,6 +291,7 @@ function App() {
     setSubmittedFormat(options.format)
     const body = new FormData()
     body.append('file', file)
+    if (backgroundFile) body.append('background', backgroundFile)
     Object.entries(options).forEach(([key, value]) => body.append(key, value))
     Object.entries(metadata).forEach(([key, value]) => body.append(key, value))
     try {
@@ -194,6 +306,27 @@ function App() {
 
   const busy = job && ['queued', 'running'].includes(job.status)
   const previewUrl = job?.status === 'succeeded' && job.result_url ? `${API_BASE}${job.result_url}` : null
+
+  useEffect(() => {
+    if (!backgroundFile) {
+      setBackgroundPreview(null)
+      return undefined
+    }
+    const url = URL.createObjectURL(backgroundFile)
+    setBackgroundPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [backgroundFile])
+
+  // 阻止浏览器把拖入文件当作链接打开；正式处理在拖拽目标区内完成。
+  useEffect(() => {
+    const prevent = event => event.preventDefault()
+    window.addEventListener('dragover', prevent)
+    window.addEventListener('drop', prevent)
+    return () => {
+      window.removeEventListener('dragover', prevent)
+      window.removeEventListener('drop', prevent)
+    }
+  }, [])
 
   useEffect(() => {
     setPreviewScale(1)
@@ -258,7 +391,8 @@ function App() {
         <section className="preview-zone" aria-label="谱面预览">
           <div
             ref={previewRef}
-            className={`preview-placeholder${busy ? ' scanning' : ''}${previewUrl ? ' has-result' : ''}`}
+            className={`preview-placeholder${busy ? ' scanning' : ''}${previewUrl ? ' has-result' : ''}${dragOverZone === 'preview' ? ' dragover' : ''}`}
+            {...dragHandlers('preview')}
             onWheel={handlePreviewWheel}
             onPointerDown={handlePreviewPointerDown}
             onPointerMove={handlePreviewPointerMove}
@@ -269,6 +403,7 @@ function App() {
               <div className="preview-icon" aria-hidden="true"><span>♪</span></div>
               <div className="preview-text">{job?.status === 'failed' ? '渲染失败' : busy ? '正在生成预览' : '尚未载入谱面'}</div>
             </div>}
+            {dragOverZone === 'preview' && <div className="drop-overlay"><span>松开以载入谱面 / 曲绘 / 信息文件</span></div>}
           </div>
           <div className="preview-toolbar" aria-label="预览缩放控制">
             <button type="button" className="preview-control" aria-label="缩小预览" title="缩小" disabled={!previewUrl || previewScale <= MIN_PREVIEW_SCALE} onClick={() => zoomPreview(previewScale - PREVIEW_ZOOM_STEP)}>−</button>
@@ -284,9 +419,8 @@ function App() {
               <section className="section">
                 <SectionHeading number="01">谱面文件</SectionHeading>
                 <label
-                  className={`upload-box${file ? ' active' : ''}`}
-                  onDragOver={event => event.preventDefault()}
-                  onDrop={handleDrop}
+                  className={`upload-box${file ? ' active' : ''}${dragOverZone === 'upload' ? ' dragover' : ''}`}
+                  {...dragHandlers('upload')}
                 >
                   <input type="file" accept=".json,.pez,.zip" onChange={handleFileChange} />
                   <span className="upload-inner">
@@ -295,6 +429,20 @@ function App() {
                     {file && <span className="file-name">{file.name}</span>}
                   </span>
                 </label>
+                <div className={`bg-upload-box${backgroundFile ? ' active' : ''}${dragOverZone === 'upload' ? ' dragover' : ''}`} {...dragHandlers('upload')}>
+                  <label className="bg-upload-label">
+                    <input type="file" accept=".png,.jpg,.jpeg" onChange={handleBackgroundChange} />
+                    {backgroundPreview
+                      ? <img className="bg-thumb" src={backgroundPreview} alt="曲绘预览" />
+                      : <span className="bg-thumb bg-thumb-empty" aria-hidden="true">✦</span>}
+                    <span className="bg-meta">
+                      <span className="bg-name">{backgroundFile ? backgroundFile.name : '曲绘（可选）'}</span>
+                      <span className="bg-hint">{backgroundFile ? '点击更换；渲染时覆盖谱面自带曲绘' : '为 JSON 谱面指定曲绘，或替换谱面包自带曲绘'}</span>
+                    </span>
+                  </label>
+                  {backgroundFile && <button type="button" className="bg-remove" aria-label="移除曲绘" title="移除曲绘" onClick={removeBackground}>×</button>}
+                </div>
+                <span className="drop-hint">拖拽谱面到本区域或左侧渲染区；可同时拖入曲绘图片与 info.txt 自动填充信息</span>
               </section>
 
               <section className="section">

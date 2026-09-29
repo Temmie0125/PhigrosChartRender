@@ -30,7 +30,11 @@ from .constants import (
     SMART_COLUMN_BEATS,
     COLUMN_BEATS,
 )
-from .package_loader import ChartPackageError, load_chart_input
+from .package_loader import (
+    ChartPackageError,
+    load_chart_input,
+    parse_info_file,
+)
 from .service import render_source
 from .time_scale import normalize_bpm_scale
 
@@ -85,6 +89,8 @@ class Job:
     progress: int = 0
     error: str | None = None
     result_path: Path | None = None
+    # 用户上传的自定义曲绘；None 时按谱面包规则解析。
+    background_path: Path | None = None
 
 
 def _format_render_error(exc: Exception) -> str:
@@ -125,7 +131,12 @@ class JobManager:
                 shutil.rmtree(job.work_dir, ignore_errors=True)
                 self.jobs.pop(job_id, None)
 
-    async def create(self, upload: UploadFile, options: RenderOptions) -> Job:
+    async def create(
+        self,
+        upload: UploadFile,
+        options: RenderOptions,
+        background: UploadFile | None = None,
+    ) -> Job:
         self.purge_expired()
         active = sum(job.status in {"queued", "running"} for job in self.jobs.values())
         if active >= self.max_jobs:
@@ -138,6 +149,7 @@ class JobManager:
         work_dir.mkdir(parents=True, exist_ok=False)
         source = work_dir / f"source{suffix}"
         size = 0
+        background_path: Path | None = None
         try:
             with source.open("wb") as dst:
                 while chunk := await upload.read(1024 * 1024):
@@ -145,13 +157,36 @@ class JobManager:
                     if size > self.max_upload:
                         raise HTTPException(status_code=413, detail="上传文件超过大小限制")
                     dst.write(chunk)
+            if background is not None and background.filename:
+                background_path = await self._save_background(work_dir, background)
         except Exception:
             shutil.rmtree(work_dir, ignore_errors=True)
             raise
-        job = Job(job_id, source, work_dir, options, time.time())
+        job = Job(
+            job_id,
+            source,
+            work_dir,
+            options,
+            time.time(),
+            background_path=background_path,
+        )
         self.jobs[job_id] = job
         self.executor.submit(self._run, job)
         return job
+
+    async def _save_background(self, work_dir: Path, background: UploadFile) -> Path:
+        suffix = Path(background.filename or "").suffix.lower()
+        if suffix not in {".png", ".jpg", ".jpeg"}:
+            raise HTTPException(status_code=415, detail="曲绘仅支持 PNG、JPG 或 JPEG 图片")
+        target = work_dir / f"background{suffix}"
+        size = 0
+        with target.open("wb") as dst:
+            while chunk := await background.read(1024 * 1024):
+                size += len(chunk)
+                if size > self.max_upload:
+                    raise HTTPException(status_code=413, detail="曲绘图片超过大小限制")
+                dst.write(chunk)
+        return target
 
     def check_rate(self, client: str) -> None:
         if self.rate_limit <= 0 or os.environ.get("RPE_LOCAL_MODE", "false").lower() == "true":
@@ -168,6 +203,7 @@ class JobManager:
         try:
             data = render_source(
                 job.source_path,
+                background_path=job.background_path,
                 dpi=job.options.dpi,
                 output_format=job.options.format,
                 preview_bg_alpha=job.options.preview_bg_alpha,
@@ -273,6 +309,7 @@ async def health() -> dict[str, str]:
 async def create_job(
     request: Request,
     file: UploadFile = File(...),
+    background: UploadFile = File(None),
     dpi: int = Form(150),
     format: Literal["png", "jpg"] = Form("png"),
     preview_bg_alpha: float = Form(0.55),
@@ -314,7 +351,7 @@ async def create_job(
         column_beats=column_beats,
         bpm_scale=normalized_bpm_scale,
     )
-    return _response(await manager.create(file, options))
+    return _response(await manager.create(file, options, background=background))
 
 
 @app.post("/api/v1/charts/metadata", response_model=ChartMetadataResponse)
@@ -351,6 +388,37 @@ async def read_chart_metadata(file: UploadFile = File(...)) -> ChartMetadataResp
     except HTTPException:
         raise
     except (ChartPackageError, FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
+@app.post("/api/v1/charts/info", response_model=ChartMetadataResponse)
+async def read_info_metadata(file: UploadFile = File(...)) -> ChartMetadataResponse:
+    """解析独立上传的信息文件（info.txt），不创建渲染任务。"""
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix != ".txt":
+        raise HTTPException(status_code=415, detail="信息文件必须是 .txt 文件")
+    temp_root = Path(tempfile.mkdtemp(prefix="rpe-info-"))
+    source = temp_root / "info.txt"
+    size = 0
+    try:
+        with source.open("wb") as dst:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > manager.max_upload:
+                    raise HTTPException(status_code=413, detail="上传文件超过大小限制")
+                dst.write(chunk)
+        info = parse_info_file(source)
+        return ChartMetadataResponse(
+            name=info.get("Name", ""),
+            charter=info.get("Charter", ""),
+            level=info.get("Level", ""),
+            composer=info.get("Composer", ""),
+        )
+    except HTTPException:
+        raise
+    except ChartPackageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)

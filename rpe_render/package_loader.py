@@ -111,6 +111,15 @@ def _read_info(path: Path) -> dict[str, str]:
     return values
 
 
+def parse_info_file(path: str | Path) -> dict[str, str]:
+    """读取信息文件指令（供 API 解析独立上传的 info.txt）。
+
+    仅返回已知指令键（Chart/Picture/Name/Level/Composer/Illustrator/Charter 等）
+    中非空的值；读取失败时抛出 PackageFormatError。
+    """
+    return _read_info(Path(path))
+
+
 def _read_meta_background(chart_path: Path) -> str | None:
     try:
         raw = json.loads(chart_path.read_text(encoding="utf-8"))
@@ -297,4 +306,5 @@ __all__ = [
     "MissingPictureError",
     "PackageFormatError",
     "load_chart_input",
+    "parse_info_file",
 ]

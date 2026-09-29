@@ -181,6 +181,28 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .preview-placeholder.has-result:active { cursor: grabbing; }
 
+/* 渲染区拖拽反馈：虚线内框 + 覆盖层提示（覆盖层不拦截拖拽事件） */
+.preview-placeholder.dragover {
+  background: rgba(0, 191, 255, .05);
+  outline: 2px dashed rgba(0, 191, 255, .65);
+  outline-offset: -14px;
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 14px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 10, 10, .72);
+  border: 2px dashed rgba(0, 191, 255, .6);
+  color: #00bfff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  pointer-events: none;
+}
+
 .preview-toolbar {
   position: absolute;
   z-index: 5;
@@ -293,6 +315,12 @@ button { -webkit-tap-highlight-color: transparent; }
   background: rgba(0, 191, 255, .06);
 }
 
+/* 拖拽悬停反馈：比 hover 更亮一档，提示可释放 */
+.upload-box.dragover {
+  border-color: #00bfff;
+  background: rgba(0, 191, 255, .14);
+}
+
 .upload-box input { display: none; }
 
 .upload-inner {
@@ -325,6 +353,104 @@ button { -webkit-tap-highlight-color: transparent; }
   font-weight: 600;
   letter-spacing: .03em;
   overflow-wrap: anywhere;
+}
+
+/* 曲绘上传/替换框：横向布局，带缩略图预览与移除按钮 */
+.bg-upload-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .02);
+  transition: background .2s, border-color .2s;
+}
+
+.bg-upload-box:hover,
+.bg-upload-box.active {
+  border-color: rgba(0, 191, 255, .6);
+  background: rgba(0, 191, 255, .06);
+}
+
+.bg-upload-box.dragover {
+  border-color: #00bfff;
+  background: rgba(0, 191, 255, .14);
+}
+
+.bg-upload-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.bg-upload-label input { display: none; }
+
+.bg-thumb {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  object-fit: cover;
+}
+
+.bg-thumb-empty {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, .3);
+  font-size: 18px;
+}
+
+.bg-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bg-name {
+  color: rgba(255, 255, 255, .85);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bg-upload-box.active .bg-name { color: #00bfff; }
+
+.bg-hint {
+  color: rgba(255, 255, 255, .4);
+  font-size: 11px;
+}
+
+.bg-remove {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-right: 10px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .2);
+  background: transparent;
+  color: rgba(255, 255, 255, .6);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+
+.bg-remove:hover {
+  border-color: #ff8492;
+  background: rgba(255, 132, 146, .12);
+  color: #ff8492;
+}
+
+.drop-hint {
+  display: block;
+  margin-top: 10px;
+  color: rgba(255, 255, 255, .36);
+  font-size: 11px;
+  letter-spacing: .02em;
 }
 
 .field-group { display: grid; gap: 16px; }
