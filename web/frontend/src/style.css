@@ -2,6 +2,8 @@
   font-family: -apple-system, BlinkMacSystemFont, "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   color: #ffffff;
   background: #0a0a0a;
+  /* 全站固定深色主题：声明 color-scheme 让原生控件（下拉弹层/复选框/滚动条）按深色渲染 */
+  color-scheme: dark;
   font-synthesis: none;
   line-height: 1.4;
 }
@@ -362,6 +364,13 @@ button { -webkit-tap-highlight-color: transparent; }
 .field-select:focus {
   border-color: #00bfff;
   background: rgba(0, 191, 255, .05);
+}
+
+/* 下拉弹层由浏览器原生渲染，不支持 color-scheme 的引擎会按系统浅色主题
+   绘制弹层底色；option 显式指定深色配色，避免白字没入浅色底不可读。 */
+.field-select option {
+  background-color: #14181d;
+  color: #ffffff;
 }
 
 .field-input:disabled { cursor: not-allowed; opacity: .42; }
