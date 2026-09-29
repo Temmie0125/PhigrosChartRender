@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from functools import lru_cache
 from math import isclose
 
 from .models import ChartData
@@ -21,6 +22,9 @@ def _is_power_of_two(value: int) -> bool:
     return value > 0 and value & (value - 1) == 0
 
 
+# 相邻窗口的区间值高度重复（同一节奏型反复出现），缓存原生分音判定；
+# 常驻进程（API 服务）中使用有界缓存防止长期增长。
+@lru_cache(maxsize=65_536)
 def _is_exact_native_interval(interval: float) -> bool:
     """Whether an interval is already an exact power-of-two note value."""
     if interval <= 0.0:
@@ -73,41 +77,54 @@ def _candidate_division(times: list[float], start: int, end: int) -> float | Non
     if fit_span < MIN_SPAN_BEATS:
         return None
 
+    # 除数上下界剪枝：由第一步长检查（step >= 1 且 step <= 2，原生例外
+    # 恰为 3）可推出必要条件，从区间极值直接限定候选除数范围——
+    # - 下界: round(v / interval) >= 1 要求 v / interval > 0.5（round(0.5)=0），
+    #   即 interval < 2·v_min，故 division = 4/interval > 2/v_min；
+    # - 上界: round(v / interval) <= 3 等价于 v / interval < 3.5
+    #   （round(3.5)=4），取 v_max 得 division < 14/v_max。
+    # 两端各放宽 1 档吸收浮点误差，保证旧实现可能命中的除数绝不被跳过。
+    # 区间极差过大（v_max > 约 7·v_min）时上下界为空，无需逐档尝试。
+    min_interval = min(fit_intervals)
+    if min_interval <= 0.0:
+        return None
+    max_interval = max(fit_intervals)
+    division_low = max(3, int(2.0 / min_interval) - 1)
+    division_high = min(MAX_DIVISION_DENOMINATOR, int(14.0 / max_interval) + 2)
+    if division_low > division_high:
+        return None
+
     # Preserve the sequence's actual boundary.  Special divisions such as
     # 10ths may start on an integer beat that is not itself a global multiple
     # of 4/10, so snapping the anchor to the fitted interval would be wrong.
     anchor = times[start]
-    for division in range(3, MAX_DIVISION_DENOMINATOR + 1):
+    for division in range(division_low, division_high + 1):
         if _is_power_of_two(division):
             continue
         interval = 4.0 / division
-        grid_steps = [round(value / interval) for value in fit_intervals]
-        if any(
-            step < 1
-            or step > MAX_GRID_STEP
-            and not (
+        # 步长检查与容差检查融合为单遍短路扫描：逐区间计算 step，任一
+        # 区间违反步长或容差立即换下一除数，避免先物化全部 grid_steps。
+        for value in fit_intervals:
+            step = round(value / interval)
+            if step < 1 or step > MAX_GRID_STEP and not (
                 _is_exact_native_interval(value)
                 and step == MAX_GRID_STEP + 1
-            )
-            for value, step in zip(fit_intervals, grid_steps)
-        ):
-            continue
-        if any(
-            abs(value - step * interval) > FIT_TOLERANCE_BEATS
-            for value, step in zip(fit_intervals, grid_steps)
-        ):
-            continue
-        if any(
-            abs(
-                anchor
-                + round((times[index] - anchor) / interval) * interval
-                - times[index]
-            )
-            > GRID_ALIGNMENT_TOLERANCE_BEATS
-            for index in range(start, end + 1)
-        ):
-            continue
-        return interval
+            ):
+                break
+            if abs(value - step * interval) > FIT_TOLERANCE_BEATS:
+                break
+        else:
+            if any(
+                abs(
+                    anchor
+                    + round((times[index] - anchor) / interval) * interval
+                    - times[index]
+                )
+                > GRID_ALIGNMENT_TOLERANCE_BEATS
+                for index in range(start, end + 1)
+            ):
+                continue
+            return interval
     return None
 
 
