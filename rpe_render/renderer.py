@@ -203,7 +203,15 @@ def render(config: RenderConfig) -> None:
     # ===== Phase 1: 解析 =====
     chart = parse_chart(config.chart_path)
     # 官谱的特殊分音是格式固有特征，检测到后自动拟合；RPE 仍遵循显式开关。
-    if config.fit_official_divisions or chart.is_official:
+    # 启用 BPM 缩放的官谱跳过拟合：官谱时值固定在 T 网格（1/32 书写拍）上，
+    # 不存在 12/24 分音的量化漂移——个别谱面正是以 N 倍 BPM 书写来绕开该
+    # 限制，拟合没有收益；且这类谱面的真实节奏区间（如实际 16 分音 =
+    # 3/N 书写拍）在书写拍空间不再是 2 的幂，拟合的剪枝条件全部失效，
+    # 高密度时值下候选窗口数量近二次膨胀（实测三倍 BPM 谱面耗时 60 秒+）。
+    official_fit_skipped = chart.is_official and config.bpm_scale != 1.0
+    if (
+        config.fit_official_divisions or chart.is_official
+    ) and not official_fit_skipped:
         from .division_fit import fit_official_divisions
 
         changed = fit_official_divisions(chart)

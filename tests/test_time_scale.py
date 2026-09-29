@@ -1,5 +1,7 @@
 """BPM 缩放倍率（time_scale）测试。"""
 
+import json
+
 import pytest
 
 from rpe_render.info_bar import compute_duration_seconds
@@ -199,3 +201,117 @@ def test_render_config_validates_bpm_scale():
         RenderConfig(chart_path="chart.json", bpm_scale=0.7)
     config = RenderConfig(chart_path="chart.json", bpm_scale="1/3")
     assert config.bpm_scale == pytest.approx(1.0 / 3.0)
+
+
+def _write_official_chart(path) -> None:
+    """构造最小官谱 JSON（formatVersion=3，三倍 BPM 书写）。"""
+    chart = {
+        "formatVersion": 3,
+        "offset": 0.0,
+        "judgeLineList": [
+            {
+                "bpm": 540.0,
+                "notesAbove": [],
+                "notesBelow": [
+                    {"type": 1, "time": 4, "positionX": 0.0},
+                    {"type": 1, "time": 8, "positionX": 1.0},
+                    {"type": 1, "time": 12, "positionX": -1.0},
+                ],
+                "speedEvents": [{"startTime": 0, "endTime": 16, "value": 1.0}],
+                "judgeLineMoveEvents": [
+                    {
+                        "startTime": 0,
+                        "endTime": 16,
+                        "start": 0.5,
+                        "end": 0.5,
+                        "start2": 0.5,
+                        "end2": 0.5,
+                    }
+                ],
+                "judgeLineRotateEvents": [],
+                "judgeLineDisappearEvents": [],
+            }
+        ],
+    }
+    path.write_text(json.dumps(chart), encoding="utf-8")
+
+
+@pytest.fixture()
+def _spy_official_fit(monkeypatch):
+    """替换 division_fit.fit_official_divisions 并记录调用。"""
+    import rpe_render.division_fit as division_fit
+
+    calls: list[int] = []
+    original = division_fit.fit_official_divisions
+
+    def spy(chart):
+        calls.append(len(chart.judge_line_list))
+        return original(chart)
+
+    monkeypatch.setattr(division_fit, "fit_official_divisions", spy)
+    return calls
+
+
+def test_official_chart_skips_fitting_when_scaled(
+    tmp_path, notes_dir, _spy_official_fit
+):
+    """官谱 + BPM 缩放：跳过分音拟合（T 网格官谱无分音漂移，拟合无收益）。"""
+    from rpe_render.renderer import render
+
+    chart_path = tmp_path / "official.json"
+    _write_official_chart(chart_path)
+    output = tmp_path / "out.png"
+
+    render(
+        RenderConfig(
+            chart_path=chart_path,
+            output_path=output,
+            notes_dir=notes_dir,
+            bpm_scale="1/3",
+        )
+    )
+
+    assert _spy_official_fit == []
+    assert output.exists()
+
+
+def test_official_chart_still_fits_without_scale(
+    tmp_path, notes_dir, _spy_official_fit
+):
+    """官谱未缩放时保持原有自动拟合行为。"""
+    from rpe_render.renderer import render
+
+    chart_path = tmp_path / "official.json"
+    _write_official_chart(chart_path)
+    output = tmp_path / "out.png"
+
+    render(
+        RenderConfig(
+            chart_path=chart_path,
+            output_path=output,
+            notes_dir=notes_dir,
+            bpm_scale="1",
+        )
+    )
+
+    assert _spy_official_fit == [1]
+
+
+def test_rpe_chart_explicit_fit_unaffected_by_scale(
+    minimal_chart_path, notes_dir, tmp_path, _spy_official_fit
+):
+    """RPE 谱面显式开启拟合时不受 bpm_scale 影响（跳过仅限官谱）。"""
+    from rpe_render.renderer import render
+
+    output = tmp_path / "out.png"
+    render(
+        RenderConfig(
+            chart_path=minimal_chart_path,
+            output_path=output,
+            notes_dir=notes_dir,
+            fit_official_divisions=True,
+            bpm_scale="1/3",
+        )
+    )
+
+    assert len(_spy_official_fit) >= 1
