@@ -326,7 +326,7 @@ JSON / PEZ / ZIP
 |---|---|
 | 多押判定 | 映射到主谱面后的 `displayBeat` 相同才构成实际多押；浮点映射使用稳定舍入 |
 | Hold Body | 始终竖直矩形拉伸；段内 Head/End 与 Body 同 X 对齐；跨栏分段各用段内 X（尾段/中段取本段起始时刻判定线 X 映射到本栏）；Body 向两端延伸 `HOLD_BODY_OVERLAP_PX`（默认 1px）重叠拼接，消除接缝；轨迹曲线仅当持续期内存在实际位移（像素 X 范围 ≥ `HOLD_TRAJECTORY_MIN_DISPLACEMENT_PX`，默认 1px）时渲染 |
-| 时值间隔标记 | 仅 Tap+Hold 跨类型混合排序，间隔 ≤ 1/4 拍（16 分音符）标记 N 分音符刻度（label = 4/间隔拍数） |
+| 时值间隔标记 | 仅 Tap+Hold 跨类型混合排序，间隔 < 1/2 拍（小于八分音符，如 12 分、16 分）标记 N 分音符刻度（label = 4/间隔拍数）；0.49 拍的默认阈值把整 1/2 拍排除在外 |
 | 位置重合标注 | 仅同一主谱面实际开始时间的 Note 参与判定；组内按真实 X 距离 ≤ `NOTE_OVERLAP_THRESHOLD_X`（默认 75）聚类，在组最右 Note 旁标注 "×n"；Hold 只以头部计入 |
 | Note 炸弹防御 | 仅对同一实际开始时间、精确相同渲染位置且几何完全一致的重复 Note 生效；默认最多绘制 4 个，按类型轮询优先覆盖 Tap/Hold/Flick/Drag；原始 Note 仍用于数量标注与统计 |
 | 判定线坐标 | 全部 4 层 `moveXEvents`/`moveYEvents`/`rotateEvents` 叠加；父线递归变换，`rotateWithFather` 控制角度继承 |

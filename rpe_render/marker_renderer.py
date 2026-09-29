@@ -42,8 +42,8 @@ def compute_interval_markers(
 
     规则（D10）：
     - 筛选 type IN (Tap=1, Hold=2) 的 Note，跨类型混合后按主谱面 beat 排序
-    - 仅标记 0 < 间隔 <= MAX_INTERVAL_MARK_BEAT（1/4 拍，16 分音符）的位置；
-      间隔大于 1/4 拍（如八分音符 1/2 拍）不标记
+    - 仅标记 0 < 间隔 <= MAX_INTERVAL_MARK_BEAT（默认 0.49，即小于 1/2 拍）
+      的位置；间隔 1/2 拍（八分音符）及以上不标记
     - 标记文字为 N 分音符刻度：label = round(4 / interval)，
       如间隔 1/4 拍（16 分）→ "16"，1/8 拍（32 分）→ "32"
     - 标记位置取两个 Note 之间的间隔中点（而非第二个 Note 的位置），

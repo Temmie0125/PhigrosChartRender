@@ -60,13 +60,19 @@ class TestIntervalMarkers:
         assert markers == [(pytest.approx(0.0625), 0.0, "32")]
 
     def test_quarter_note_interval_marked(self):
-        # 1/4 拍间隔 = 16 分音符 → 标记 "16"（阈值边界，含）
+        # 1/4 拍间隔 = 16 分音符 → 标记 "16"（低于 0.49 阈值）
         notes = [make_info(1, 0.0), make_info(1, 0.25)]
         markers = compute_interval_markers(notes)
         assert markers == [(pytest.approx(0.125), 0.0, "16")]
 
+    def test_triplet_eighth_interval_marked(self):
+        # 1/3 拍间隔 = 12 分音符 → 标记 "12"（默认阈值 0.49 覆盖 12 分音）
+        notes = [make_info(1, 0.0), make_info(1, 1.0 / 3.0)]
+        markers = compute_interval_markers(notes)
+        assert markers == [(pytest.approx(1.0 / 6.0), 0.0, "12")]
+
     def test_half_note_interval_not_marked(self):
-        # 1/2 拍间隔（八分音符）→ 超过阈值，不标记
+        # 1/2 拍间隔（八分音符）→ 超过阈值（0.49），不标记
         notes = [make_info(1, 0.0), make_info(1, 0.5)]
         assert compute_interval_markers(notes) == []
 

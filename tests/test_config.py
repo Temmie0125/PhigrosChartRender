@@ -2,6 +2,7 @@
 
 import json
 import warnings
+from pathlib import Path
 
 import pytest
 
@@ -106,3 +107,24 @@ class TestLoadConfig:
         with pytest.warns(UserWarning):
             constants.load_config(p)
         assert constants.CONFIG_FILE_NAME == before
+
+
+class TestExampleConfigSync:
+    """示例配置文件的每个键必须与 constants 默认值一致，防止两边漂移。"""
+
+    def test_example_config_matches_defaults(self):
+        example_path = (
+            Path(__file__).resolve().parent.parent / "render_config.example.json"
+        )
+        data = json.loads(example_path.read_text(encoding="utf-8"))
+        mismatched = {}
+        for key, value in data.items():
+            if key.startswith("_"):
+                continue  # 注释键不参与校验
+            assert hasattr(constants, key), f"示例配置含未知键: {key}"
+            if getattr(constants, key) != value:
+                mismatched[key] = (getattr(constants, key), value)
+        assert not mismatched, (
+            "constants 默认值与 render_config.example.json 不一致"
+            f"（常量值, 示例值）: {mismatched}"
+        )

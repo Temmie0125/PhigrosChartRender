@@ -162,8 +162,9 @@ BEAT_MARK_INTERVAL: int = 4
 BAR_LINE_INTERVAL: int = 4
 
 # 时值间隔标记的最大间隔（拍）
-# 仅标记间隔 <= 1/4 拍（16 分音符）的相邻 Tap/Hold
-MAX_INTERVAL_MARK_BEAT: float = 0.25
+# 仅标记间隔 < 1/2 拍（小于八分音符，如 12 分、16 分）的相邻 Tap/Hold；
+# 0.49 用于把整 1/2 拍（八分音符本身）排除在外
+MAX_INTERVAL_MARK_BEAT: float = 0.49
 
 # 累计计数标记间隔（拍）
 COUNT_MARK_INTERVAL: int = 4
