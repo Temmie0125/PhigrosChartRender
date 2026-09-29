@@ -39,6 +39,7 @@ from .constants import (
     BACKGROUND_BRIGHTNESS,
     BPM_SCALE,
     FIT_OFFICIAL_DIVISIONS,
+    MIRROR,
     SMART_COLUMN_BEATS,
     NOTE_BOMB_RENDER_LIMIT,
     SIDE_MARKER_PADDING_PX,
@@ -53,6 +54,7 @@ from .hold_renderer import (
 )
 from .info_bar import compute_duration_seconds, compute_note_stats, render_info_bar
 from .marker_renderer import render_markers, render_overlap_markers
+from .mirror import mirror_chart
 from .models import ColumnInfo, NoteRenderInfo
 from .note_renderer import (
     NoteImageLoader,
@@ -95,6 +97,7 @@ class RenderConfig:
         background_brightness: float = BACKGROUND_BRIGHTNESS,
         tile_workers: int | None = None,
         fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
+        mirror: bool = MIRROR,
         smart_column_beats: bool = SMART_COLUMN_BEATS,
         column_beats: int = COLUMN_BEATS,
         bpm_scale: float = BPM_SCALE,
@@ -119,6 +122,7 @@ class RenderConfig:
             None if normalized_tile_workers == 0 else normalized_tile_workers
         )
         self.fit_official_divisions = bool(fit_official_divisions)
+        self.mirror = bool(mirror)
         self.smart_column_beats = bool(smart_column_beats)
         self.column_beats = int(column_beats)
         if not 16 <= self.column_beats <= 128 or self.column_beats % 4:
@@ -202,6 +206,9 @@ def render(config: RenderConfig) -> None:
     """
     # ===== Phase 1: 解析 =====
     chart = parse_chart(config.chart_path)
+    if config.mirror:
+        mirror_chart(chart)
+        logger.info("Applied horizontal mirror to chart")
     # 官谱的特殊分音是格式固有特征，检测到后自动拟合；RPE 仍遵循显式开关。
     # 启用 BPM 缩放的官谱跳过拟合：官谱时值固定在 T 网格（1/32 书写拍）上，
     # 不存在 12/24 分音的量化漂移——个别谱面正是以 N 倍 BPM 书写来绕开该

@@ -26,6 +26,7 @@ from .constants import (
     BACKGROUND_BRIGHTNESS,
     BPM_SCALE,
     FIT_OFFICIAL_DIVISIONS,
+    MIRROR,
     SMART_COLUMN_BEATS,
     COLUMN_BEATS,
 )
@@ -51,6 +52,7 @@ class RenderOptions(BaseModel):
     # 0 means automatic worker selection; positive values override it per job.
     tile_workers: int = Field(0, ge=0, le=32)
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS
+    mirror: bool = MIRROR
     smart_column_beats: bool = SMART_COLUMN_BEATS
     column_beats: int = Field(COLUMN_BEATS, ge=16, le=128, multiple_of=4)
     # 已由 create_job 通过 normalize_bpm_scale 归一为允许档位之一。
@@ -186,6 +188,7 @@ class JobManager:
                     None if job.options.tile_workers == 0 else job.options.tile_workers
                 ),
                 fit_official_divisions=job.options.fit_official_divisions,
+                mirror=job.options.mirror,
                 smart_column_beats=job.options.smart_column_beats,
                 column_beats=job.options.column_beats,
                 bpm_scale=job.options.bpm_scale,
@@ -282,6 +285,7 @@ async def create_job(
     background_brightness: float = Form(BACKGROUND_BRIGHTNESS),
     tile_workers: int = Form(0, ge=0, le=32),
     fit_official_divisions: bool = Form(FIT_OFFICIAL_DIVISIONS),
+    mirror: bool = Form(MIRROR),
     smart_column_beats: bool = Form(SMART_COLUMN_BEATS),
     column_beats: int = Form(COLUMN_BEATS, ge=16, le=128, multiple_of=4),
     bpm_scale: str = Form(str(BPM_SCALE)),
@@ -305,6 +309,7 @@ async def create_job(
         background_brightness=background_brightness,
         tile_workers=tile_workers,
         fit_official_divisions=fit_official_divisions,
+        mirror=mirror,
         smart_column_beats=smart_column_beats,
         column_beats=column_beats,
         bpm_scale=normalized_bpm_scale,

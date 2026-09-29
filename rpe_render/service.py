@@ -10,6 +10,7 @@ from .constants import (
     BACKGROUND_BRIGHTNESS,
     BPM_SCALE,
     FIT_OFFICIAL_DIVISIONS,
+    MIRROR,
     SMART_COLUMN_BEATS,
     COLUMN_BEATS,
 )
@@ -31,6 +32,7 @@ def render_source(
     background_brightness: float = BACKGROUND_BRIGHTNESS,
     tile_workers: int | None = None,
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
+    mirror: bool = MIRROR,
     smart_column_beats: bool = SMART_COLUMN_BEATS,
     column_beats: int = COLUMN_BEATS,
     bpm_scale: float = BPM_SCALE,
@@ -64,6 +66,7 @@ def render_source(
                     background_brightness=background_brightness,
                     tile_workers=tile_workers,
                     fit_official_divisions=fit_official_divisions,
+                    mirror=mirror,
                     smart_column_beats=smart_column_beats,
                     column_beats=column_beats,
                     bpm_scale=bpm_scale,

@@ -183,6 +183,10 @@ COUNT_MARK_FONT_SIZE: float = 7.0
 # 实验性官谱分音拟合（默认关闭，可能改变 Note 的实际开始位置）。
 FIT_OFFICIAL_DIVISIONS: bool = False
 
+# 谱面左右镜像（默认关闭）：Note positionX、判定线 moveX/rotate 事件值
+# 整体取反，最终横向坐标与原谱面关于 x=0 对称。
+MIRROR: bool = False
+
 # BPM 缩放倍率：谱面按 N 倍 BPM 书写时（如实际 180 按 540 书写），把全部
 # 时值与 BPM 数值按倍率整体缩放，使画布尺寸恢复正常。1 = 不缩放；
 # 可选 1/4、1/3、1/2、1、2、3、4。

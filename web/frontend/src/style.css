@@ -429,6 +429,47 @@ button { -webkit-tap-highlight-color: transparent; }
 .toggle-content { line-height: 1; }
 .toggle-content span { display: block; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
 
+/* Phigros 风格 Mirror 平行四边形开关：关闭灰色，开启白色亮起。
+   斜度与上方分段选择器（toggle-group）一致（--slant: 10px，同向斜切）；
+   clip-path 会裁掉 box-shadow，亮起的光晕用 drop-shadow 实现。 */
+.mirror-btn {
+  --slant: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 132px;
+  height: 40px;
+  padding: 0 var(--slant);
+  border: 0;
+  outline: 0;
+  background: rgba(255, 255, 255, .14);
+  color: rgba(255, 255, 255, .55);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  clip-path: polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+  cursor: pointer;
+  transition: background .2s, color .2s, filter .2s;
+}
+
+.mirror-btn span { line-height: 1; }
+
+.mirror-btn:hover:not(.on) {
+  background: rgba(255, 255, 255, .22);
+  color: rgba(255, 255, 255, .82);
+}
+
+.mirror-btn:focus-visible {
+  background: rgba(255, 255, 255, .22);
+  color: #ffffff;
+}
+
+.mirror-btn.on {
+  background: #ffffff;
+  color: #05070b;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, .35));
+}
+
 .slider-field { margin-bottom: 28px; }
 
 .slider-header {

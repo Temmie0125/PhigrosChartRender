@@ -47,6 +47,7 @@ def parse_args(argv: list[str] | None = None):
         TRACK_BG_ALPHA,
         BPM_SCALE,
         FIT_OFFICIAL_DIVISIONS,
+        MIRROR,
         COLUMN_BEATS,
         SMART_COLUMN_BEATS,
     )
@@ -124,6 +125,12 @@ def parse_args(argv: list[str] | None = None):
         default=FIT_OFFICIAL_DIVISIONS,
         help="实验性：拟合官谱常见的非 2 次幂分音（默认关闭）",
     )
+    parser.add_argument(
+        "--mirror",
+        action="store_true",
+        default=MIRROR,
+        help="谱面左右镜像：横向坐标整体取反（默认关闭）",
+    )
     def column_beats_value(value: str) -> str | int:
         if value.lower() == "auto":
             return "auto"
@@ -185,6 +192,7 @@ def parse_args(argv: list[str] | None = None):
         preview_bg_alpha=args.preview_bg_alpha,
         track_bg_alpha=args.track_bg_alpha,
         fit_official_divisions=args.fit_official_divisions,
+        mirror=args.mirror,
         smart_column_beats=args.column_beats == "auto",
         column_beats=(
             COLUMN_BEATS if args.column_beats == "auto" else args.column_beats
@@ -231,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
                 preview_bg_alpha=config.preview_bg_alpha,
                 track_bg_alpha=config.track_bg_alpha,
                 fit_official_divisions=config.fit_official_divisions,
+                mirror=config.mirror,
                 smart_column_beats=config.smart_column_beats,
                 column_beats=config.column_beats,
                 bpm_scale=config.bpm_scale,

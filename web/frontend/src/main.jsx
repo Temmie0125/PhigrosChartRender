@@ -12,6 +12,7 @@ const DEFAULT_OPTIONS = {
   background_blur_sigma: 15,
   background_brightness: 0.75,
   fit_official_divisions: false,
+  mirror: false,
   smart_column_beats: true,
   column_beats: 64,
   bpm_scale: '1',
@@ -364,6 +365,17 @@ function App() {
                       <option value="4">4</option>
                     </select>
                     <span className="field-hint">谱面按倍率书写 BPM 时整体缩放时间轴，如实际 180 写作 540 选 1/3</span>
+                  </div>
+                  <div className="field">
+                    <span className="field-label">镜像</span>
+                    <button
+                      type="button"
+                      className={`mirror-btn${options.mirror ? ' on' : ''}`}
+                      aria-pressed={options.mirror}
+                      title="镜像谱面（左右翻转）"
+                      onClick={() => updateOption('mirror', !options.mirror)}
+                    ><span>Mirror</span></button>
+                    <span className="field-hint">开启后谱面配置左右镜像，横向坐标取反</span>
                   </div>
                 </div>
               </section>
