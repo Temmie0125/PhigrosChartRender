@@ -14,6 +14,7 @@ const DEFAULT_OPTIONS = {
   fit_official_divisions: false,
   smart_column_beats: true,
   column_beats: 64,
+  bpm_scale: '1',
 }
 const EMPTY_METADATA = { name: '', charter: '', level: '', composer: '' }
 const MIN_PREVIEW_SCALE = 0.5
@@ -346,6 +347,24 @@ function App() {
                     <input id="column-beats" className="field-input" type="number" min="16" max="128" step="4" value={options.column_beats} onChange={event => updateOption('column_beats', Number(event.target.value))} />
                     <span className="field-hint">范围 16–128，以 4 拍为一档</span>
                   </div>}
+                  <div className="field">
+                    <label className="field-label" htmlFor="bpm-scale">BPM 缩放倍率</label>
+                    <select
+                      id="bpm-scale"
+                      className="field-select"
+                      value={options.bpm_scale}
+                      onChange={event => updateOption('bpm_scale', event.target.value)}
+                    >
+                      <option value="1/4">1/4</option>
+                      <option value="1/3">1/3</option>
+                      <option value="1/2">1/2</option>
+                      <option value="1">1（默认）</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                    </select>
+                    <span className="field-hint">谱面按倍率书写 BPM 时整体缩放时间轴，如实际 180 写作 540 选 1/3</span>
+                  </div>
                 </div>
               </section>
 

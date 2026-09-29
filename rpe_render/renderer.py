@@ -37,6 +37,7 @@ from .constants import (
     PREVIEW_BG_ALPHA,
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
+    BPM_SCALE,
     FIT_OFFICIAL_DIVISIONS,
     SMART_COLUMN_BEATS,
     NOTE_BOMB_RENDER_LIMIT,
@@ -71,6 +72,7 @@ from .timeline import (
     merge_all_notes,
     x_to_pixel,
 )
+from .time_scale import normalize_bpm_scale, scale_chart_time
 
 logger = logging.getLogger("rpe_render")
 
@@ -95,6 +97,7 @@ class RenderConfig:
         fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
         smart_column_beats: bool = SMART_COLUMN_BEATS,
         column_beats: int = COLUMN_BEATS,
+        bpm_scale: float = BPM_SCALE,
     ):
         self.chart_path = chart_path
         self.background_path = background_path
@@ -120,6 +123,7 @@ class RenderConfig:
         self.column_beats = int(column_beats)
         if not 16 <= self.column_beats <= 128 or self.column_beats % 4:
             raise ValueError("column_beats must be a multiple of 4 between 16 and 128")
+        self.bpm_scale = normalize_bpm_scale(bpm_scale)
 
 
 def _normalize_output_format(
@@ -204,6 +208,11 @@ def render(config: RenderConfig) -> None:
 
         changed = fit_official_divisions(chart)
         logger.info("Official division fitting adjusted %d Note starts", changed)
+    # 指定 BPM 缩放倍率时统一缩放时值与 BPM 数值。官谱分音拟合的容差按
+    # 谱面书写拍定义，因此缩放必须位于拟合之后。
+    if config.bpm_scale != 1.0:
+        scale_chart_time(chart, config.bpm_scale)
+        logger.info("Applied BPM scale %s to chart timings", config.bpm_scale)
     # 元数据覆盖仅作用于当前渲染任务，不回写上传文件。
     for field_name in ("name", "charter", "level", "composer"):
         if field_name in config.metadata:

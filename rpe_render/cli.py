@@ -45,11 +45,13 @@ def parse_args(argv: list[str] | None = None):
         OUTPUT_DPI,
         PREVIEW_BG_ALPHA,
         TRACK_BG_ALPHA,
+        BPM_SCALE,
         FIT_OFFICIAL_DIVISIONS,
         COLUMN_BEATS,
         SMART_COLUMN_BEATS,
     )
     from .renderer import RenderConfig
+    from .time_scale import normalize_bpm_scale
 
     parser = argparse.ArgumentParser(
         prog="rpe-render",
@@ -143,6 +145,23 @@ def parse_args(argv: list[str] | None = None):
             f"（默认: {'auto' if SMART_COLUMN_BEATS else COLUMN_BEATS}）"
         ),
     )
+
+    def bpm_scale_value(value: str) -> float:
+        try:
+            return normalize_bpm_scale(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+
+    parser.add_argument(
+        "--bpm-scale",
+        type=bpm_scale_value,
+        default=BPM_SCALE,
+        metavar="1/4|1/3|1/2|1|2|3|4",
+        help=(
+            "BPM 缩放倍率：谱面按 N 倍 BPM 书写时整体缩放时值与 BPM 数值"
+            f"（默认: {BPM_SCALE:g}，不缩放）"
+        ),
+    )
     args = parser.parse_args(argv)
     raw_args = list(argv) if argv is not None else sys.argv[1:]
     output_path = args.output
@@ -170,6 +189,7 @@ def parse_args(argv: list[str] | None = None):
         column_beats=(
             COLUMN_BEATS if args.column_beats == "auto" else args.column_beats
         ),
+        bpm_scale=args.bpm_scale,
     )
 
 
@@ -213,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
                 fit_official_divisions=config.fit_official_divisions,
                 smart_column_beats=config.smart_column_beats,
                 column_beats=config.column_beats,
+                bpm_scale=config.bpm_scale,
             )
             Path(config.output_path).write_bytes(image)
         else:

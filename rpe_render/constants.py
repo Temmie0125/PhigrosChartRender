@@ -182,6 +182,11 @@ COUNT_MARK_FONT_SIZE: float = 7.0
 # 实验性官谱分音拟合（默认关闭，可能改变 Note 的实际开始位置）。
 FIT_OFFICIAL_DIVISIONS: bool = False
 
+# BPM 缩放倍率：谱面按 N 倍 BPM 书写时（如实际 180 按 540 书写），把全部
+# 时值与 BPM 数值按倍率整体缩放，使画布尺寸恢复正常。1 = 不缩放；
+# 可选 1/4、1/3、1/2、1、2、3、4。
+BPM_SCALE: float = 1.0
+
 # 同一时刻、同一位置且几何完全一致的重复 Note 最多实际绘制数量。
 # 仅用于防御完全重复的 Note 炸弹；数量统计与旁侧重合标注不受影响。
 NOTE_BOMB_RENDER_LIMIT: int = 4

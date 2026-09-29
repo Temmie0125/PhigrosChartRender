@@ -63,6 +63,9 @@ python -m rpe_render chart.json --fit-official-divisions
 python -m rpe_render chart.json --column-beats auto
 python -m rpe_render chart.json --column-beats 64
 
+# 谱面按 N 倍 BPM 书写时（如实际 180 按 540 书写），整体缩放时值与 BPM
+python -m rpe_render chart.json --bpm-scale 1/3
+
 # 常用参数组合
 python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
   --preview-bg-alpha 0.4 --track-bg-alpha 0.75 --config render_config.json
@@ -81,6 +84,7 @@ python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
 | `--track-bg-alpha` | 每条 Note 轨道区域额外加深透明度（0.0 关闭 ~ 1.0） | 0.75 |
 | `--fit-official-divisions` | 启用官谱分音拟合（实验性，仅 Tap/Hold） | 关闭 |
 | `--column-beats` | 每栏拍数：`auto` 智能选择，或指定 16–128 且为 4 的倍数 | `auto` |
+| `--bpm-scale` | BPM 缩放倍率：`1/4`、`1/3`、`1/2`、`1`、`2`、`3`、`4` 之一（支持分数与浮点写法） | `1`（不缩放） |
 
 输入为 PEZ/ZIP 时，程序会安全解包并定位曲绘；不会修改原始压缩包。
 谱面包信息文件按以下顺序回退：`info.txt` → 与谱面 JSON 同名的 `.txt` → 包内唯一 `.txt`。
@@ -95,6 +99,9 @@ python -m rpe_render chart.json --bg art.png -o out.jpg --format jpg --dpi 300 \
 > 官谱拟合会以至少 3 个连续间隔为候选序列，并以 1/16 拍作为最大允许误差；
 > 精确的 16/32/64 等原生分音会作为边界，避免不同节奏段互相吸附。该功能属于实验性启发式算法，
 > 开启后应检查关键段落的渲染结果。
+
+> **关于 BPM 缩放倍率：**
+> 部分谱面以 N 倍 BPM 书写（如实际 180 BPM 按 540 书写，以获得更细的时间粒度），渲染画布会按相同倍数增大，甚至因图过大而超时。对这类谱面指定 `--bpm-scale 1/3` 可把全部音符时值、事件时间与 BPM 数值整体缩放回真实节奏：画布恢复正常大小，网格与各类标记按缩放后的 BPM 标注，信息栏时长（真实秒数）保持不变。仅缩放时间轴，Note 与判定线的空间位置不变。Web UI 与 API 的对应字段为 `bpm_scale`。
 
 ### 配置文件
 
@@ -112,7 +119,7 @@ python -m rpe_render chart.json --config my_settings.json
 - 未知键与类型不匹配的键会被忽略并发出警告；以 `_` 开头的键视为注释
 - 查找顺序：`--config` 参数 > 环境变量 `RPE_RENDER_CONFIG` > 当前目录下 `render_config.json`
 - 参数优先级：命令行参数 > 配置文件 > 代码默认值
-- `FIT_OFFICIAL_DIVISIONS` 默认 `false`，`SMART_COLUMN_BEATS` 默认 `true`，`NOTE_BOMB_RENDER_LIMIT` 默认 `4`
+- `FIT_OFFICIAL_DIVISIONS` 默认 `false`，`SMART_COLUMN_BEATS` 默认 `true`，`BPM_SCALE` 默认 `1`，`NOTE_BOMB_RENDER_LIMIT` 默认 `4`
 - `SMART_COLUMN_BEATS` 开启时，渲染器会在 16–128 拍间以 4 拍为一档自动选择每栏拍数；关闭时使用固定的 `COLUMN_BEATS`。命令行通过 `--column-beats auto|数值` 选择模式。
 - 测试假定默认配置运行（仓库内不创建 `render_config.json` 时行为不变）
 
@@ -138,6 +145,7 @@ render(RenderConfig(
     preview_bg_alpha=0.55,       # 预览区半透明黑底色透明度（0.0~1.0）
     track_bg_alpha=0.75,         # 轨道区域额外加深透明度（0.0~1.0）
     fit_official_divisions=False, # 实验性官谱分音拟合，默认关闭
+    bpm_scale=1.0,                # BPM 缩放倍率（1/4、1/3、1/2、1、2、3、4），1 不缩放
 ))
 ```
 
@@ -176,9 +184,9 @@ API 使用内存任务队列和本地临时目录。任务结果默认保留 30 
 
 前端会先调用 `POST /api/v1/charts/metadata` 读取谱面元数据，再将用户编辑的
 `name`、`charter`、`level`、`composer` 作为表单字段提交到 `POST /api/v1/jobs`。
-任务还支持 `format`（`png`/`jpg`）、`smart_column_beats`、`column_beats`、`dpi`、
+任务还支持 `format`（`png`/`jpg`）、`smart_column_beats`、`column_beats`、`bpm_scale`、`dpi`、
 `tile_workers`、`preview_bg_alpha`、`track_bg_alpha`、`background_blur_sigma`、`background_brightness` 与
-`fit_official_divisions`。Web UI 将输出格式和每栏拍数作为基础配置，其余渲染参数位于高级设置。
+`fit_official_divisions`。Web UI 将输出格式、每栏拍数与 BPM 缩放倍率作为基础配置，其余渲染参数位于高级设置。
 
 `FIT_OFFICIAL_DIVISIONS` / `--fit-official-divisions` 可为 RPE 谱面显式开启实验性的分音拟合，
 默认关闭；官谱检测到后会自动开启。它只调整 Tap/Hold 起始时间，Drag/Flick 不参与拟合。

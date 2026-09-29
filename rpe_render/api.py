@@ -24,12 +24,14 @@ from .chart_parser import parse_chart
 from .constants import (
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
+    BPM_SCALE,
     FIT_OFFICIAL_DIVISIONS,
     SMART_COLUMN_BEATS,
     COLUMN_BEATS,
 )
 from .package_loader import ChartPackageError, load_chart_input
 from .service import render_source
+from .time_scale import normalize_bpm_scale
 
 
 logger = logging.getLogger("rpe_render.api")
@@ -51,6 +53,8 @@ class RenderOptions(BaseModel):
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS
     smart_column_beats: bool = SMART_COLUMN_BEATS
     column_beats: int = Field(COLUMN_BEATS, ge=16, le=128, multiple_of=4)
+    # 已由 create_job 通过 normalize_bpm_scale 归一为允许档位之一。
+    bpm_scale: float = BPM_SCALE
 
 
 class ChartMetadataResponse(BaseModel):
@@ -184,6 +188,7 @@ class JobManager:
                 fit_official_divisions=job.options.fit_official_divisions,
                 smart_column_beats=job.options.smart_column_beats,
                 column_beats=job.options.column_beats,
+                bpm_scale=job.options.bpm_scale,
             )
             result = job.work_dir / f"preview.{job.options.format}"
             result.write_bytes(data)
@@ -279,8 +284,14 @@ async def create_job(
     fit_official_divisions: bool = Form(FIT_OFFICIAL_DIVISIONS),
     smart_column_beats: bool = Form(SMART_COLUMN_BEATS),
     column_beats: int = Form(COLUMN_BEATS, ge=16, le=128, multiple_of=4),
+    bpm_scale: str = Form(str(BPM_SCALE)),
 ) -> JobResponse:
     manager.check_rate(request.client.host if request.client else "unknown")
+    # 以字符串接收，兼容 "1/3" 分数与 "0.333…" 浮点两种写法。
+    try:
+        normalized_bpm_scale = normalize_bpm_scale(bpm_scale)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     options = RenderOptions(
         dpi=dpi,
         format=format,
@@ -296,6 +307,7 @@ async def create_job(
         fit_official_divisions=fit_official_divisions,
         smart_column_beats=smart_column_beats,
         column_beats=column_beats,
+        bpm_scale=normalized_bpm_scale,
     )
     return _response(await manager.create(file, options))
 

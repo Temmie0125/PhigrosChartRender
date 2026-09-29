@@ -8,6 +8,7 @@ from pathlib import Path
 from .constants import (
     BACKGROUND_BLUR_SIGMA,
     BACKGROUND_BRIGHTNESS,
+    BPM_SCALE,
     FIT_OFFICIAL_DIVISIONS,
     SMART_COLUMN_BEATS,
     COLUMN_BEATS,
@@ -32,6 +33,7 @@ def render_source(
     fit_official_divisions: bool = FIT_OFFICIAL_DIVISIONS,
     smart_column_beats: bool = SMART_COLUMN_BEATS,
     column_beats: int = COLUMN_BEATS,
+    bpm_scale: float = BPM_SCALE,
 ) -> bytes:
     """Render a JSON/PEZ/ZIP source and return PNG or JPEG bytes."""
     normalized_format = output_format.lower().lstrip(".")
@@ -64,6 +66,7 @@ def render_source(
                     fit_official_divisions=fit_official_divisions,
                     smart_column_beats=smart_column_beats,
                     column_beats=column_beats,
+                    bpm_scale=bpm_scale,
                 )
             )
             return output.read_bytes()
